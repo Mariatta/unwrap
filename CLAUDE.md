@@ -10,7 +10,7 @@ build step. Deployed to GitHub Pages from `main` at the repository root.
 npm install
 npm run fixtures     # required before the first test run: tests/fixtures/ is gitignored
 npm test
-npm run serve        # first free port from 8000, and prints a LAN address
+npm run serve        # prints its URL, including one a tablet can reach
 ```
 
 Tests need Node 20.11 or newer. `npm run fixtures` needs Python 3, standard library

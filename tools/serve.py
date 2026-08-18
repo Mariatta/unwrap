@@ -2,42 +2,24 @@
 """Serve the repository root for local development.
 
 `python3 -m http.server 8000` fails outright when 8000 is already taken, which
-it usually is because an earlier session, or Docker, is still holding it. This
-takes the next free port instead, and prints the address a phone or tablet on
-the same network can reach, since the touch targets are the thing most worth
-checking on a real device.
+it usually is because an earlier session, or Docker, is still holding it. Port 0
+asks the kernel for whichever port is free, so there is nothing to collide with
+and nothing to configure: the port is a development detail, and the published
+site never has one.
+
+Which does mean the port changes every run, so this prints the URL, including
+the address a phone or tablet on the same network can reach. The touch targets
+are the thing most worth checking on a real device.
 
 Usage:
-    python3 tools/serve.py [port]     # default 8000, or the first free port after it
+    python3 tools/serve.py
 """
 
 import http.server
 import os
 import socket
-import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FIRST = 8000
-TRIES = 50
-
-
-def serve_near(handler, start):
-    """A server bound to `start`, or the next free port after it.
-
-    Binding the real socket and catching the failure, rather than probing with
-    a throwaway socket first: a probe closes the port before the server claims
-    it, and another process can take it in between.
-
-    The kernel will hand out any free port if asked for port 0, which needs no
-    loop at all. That is the fallback rather than the default, because a port
-    near 8000 is one you can type into a tablet, and 54948 is not.
-    """
-    for port in range(start, start + TRIES):
-        try:
-            return http.server.ThreadingHTTPServer(("0.0.0.0", port), handler)
-        except OSError:
-            continue
-    return http.server.ThreadingHTTPServer(("0.0.0.0", 0), handler)
 
 
 def lan_addresses():
@@ -73,14 +55,11 @@ def lan_addresses():
 
 
 def main():
-    asked = int(sys.argv[1]) if len(sys.argv) > 1 else FIRST
-
     os.chdir(ROOT)
-    server = serve_near(http.server.SimpleHTTPRequestHandler, asked)
+    server = http.server.ThreadingHTTPServer(
+        ("0.0.0.0", 0), http.server.SimpleHTTPRequestHandler)
     port = server.server_address[1]
 
-    if port != asked:
-        print(f"port {asked} was busy, using {port}")
     print(f"serving {ROOT}")
     print(f"  local    http://localhost:{port}")
     lan = lan_addresses()

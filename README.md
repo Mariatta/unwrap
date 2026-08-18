@@ -73,7 +73,7 @@ tells you in the results that the file may carry a few trailing bytes.
 npm install
 npm run fixtures     # required before the first test run: tests/fixtures/ is gitignored
 npm test
-npm run serve        # first free port from 8000, and prints a LAN address
+npm run serve        # prints its URL, including one a tablet can reach
 ```
 
 `npm run fixtures` needs Python 3 (standard library only). The tests need Node
