@@ -2,14 +2,185 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Unwrap — pull audio out of a Word document</title>
+<title>Unwrap: pull audio out of a Word document</title>
 <meta name="description" content="Extract an MP3 embedded inside a Word document. Runs entirely in your browser.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700;12..96,800&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="vendor/jszip.min.js"></script>
 
 <style>
+  /* ------------------------------------------------------------------
+     Webfonts, served from this origin. The page contacts nothing else:
+     no CDN, no font host, no analytics, no cookies. Latin and latin-ext
+     subsets only; Chinese renders in system CJK faces by design.
+     Bricolage Grotesque, Public Sans and IBM Plex Mono are SIL OFL 1.1,
+     licence texts alongside the files in vendor/fonts/.
+     ------------------------------------------------------------------ */
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(vendor/fonts/bricolage-grotesque-400-normal-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(vendor/fonts/bricolage-grotesque-400-normal-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(vendor/fonts/bricolage-grotesque-700-normal-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(vendor/fonts/bricolage-grotesque-700-normal-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 800;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(vendor/fonts/bricolage-grotesque-800-normal-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 800;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(vendor/fonts/bricolage-grotesque-800-normal-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(vendor/fonts/ibm-plex-mono-400-normal-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(vendor/fonts/ibm-plex-mono-400-normal-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(vendor/fonts/ibm-plex-mono-500-normal-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(vendor/fonts/ibm-plex-mono-500-normal-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(vendor/fonts/ibm-plex-mono-600-normal-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(vendor/fonts/ibm-plex-mono-600-normal-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Public Sans';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url(vendor/fonts/public-sans-400-italic-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Public Sans';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url(vendor/fonts/public-sans-400-italic-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Public Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(vendor/fonts/public-sans-400-normal-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Public Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(vendor/fonts/public-sans-400-normal-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Public Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(vendor/fonts/public-sans-500-normal-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Public Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(vendor/fonts/public-sans-500-normal-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Public Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(vendor/fonts/public-sans-600-normal-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Public Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(vendor/fonts/public-sans-600-normal-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
   :root {
     --paper:   #eef1f4;
     --card:    #ffffff;
@@ -25,7 +196,7 @@
     --mono:    "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   }
 
-  /* Chinese needs system CJK faces — the Latin display face has no coverage,
+  /* Chinese needs system CJK faces: the Latin display face has no coverage,
      and the tight negative tracking that suits it is wrong for Han characters. */
   html[lang="zh"] {
     --display: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
@@ -207,7 +378,7 @@
   }
   @keyframes pulse { 0%,100% { opacity: .25; } 50% { opacity: 1; } }
 
-  /* ---------- results (above the listing — this is what people came for) ---------- */
+  /* ---------- results (above the listing, this is what people came for) ---------- */
 
   .results { margin-top: 40px; }
   .results[hidden] { display: none; }
@@ -460,8 +631,7 @@
 <header class="topbar">
   <div class="wrap topbar-in">
     <a class="mark" href="#/">Unwrap<span>.</span></a>
-    <a class="navlink" href="#/"      data-nav="extract" data-t="nav.extract">Extract</a>
-    <a class="navlink" href="#/about" data-nav="about"   data-t="nav.about">About</a>
+    <a class="navlink" href="#/" data-nav="extract" data-t="nav.extract">Extract</a>
     <div class="langswitch" role="group" aria-label="Language">
       <button type="button" data-lang="en" aria-pressed="true">EN</button>
       <button type="button" data-lang="zh" aria-pressed="false">中文</button>
@@ -516,19 +686,21 @@
 
       <!-- ---------- English ---------- -->
       <div data-only="en">
-        <p>In August 2026 I posted about something that had just happened in my family.</p>
         <p>My mother-in-law takes English classes for new immigrants. Her teacher isn't a
            technical person. When a lesson needs a listening exercise, he emails the class a
-           Word document — with the MP3 audio file embedded inside it.</p>
+           Word document, with the MP3 audio file embedded inside it.</p>
         <p>We couldn't get the audio out. Nothing was broken. Nobody in the house runs Windows.</p>
 
         <p class="pull">The file was right there, and completely out of reach.</p>
 
-        <p>If you're him, this is a reasonable thing to do. Word lets you drop a sound file
-           onto a page, it appears as a small icon, and you send one attachment instead of two.
-           On his computer, it works. He solved his problem.</p>
+        <p>It's easy to see how this happens, and hard to see how he'd have known otherwise.
+           Word lets you drop a sound file onto a page, it appears as a small icon, and you
+           send one attachment instead of two. On his computer it plays. Nothing warns him
+           that it won't play on anyone else's, and he has a class to teach rather than a file
+           format to study. He solved his problem with the tool in front of him, which is what
+           any of us do.</p>
         <p>The format just doesn't survive the trip. Open that document in anything other than
-           Word on Windows and the audio is inert — present in the file, but unreachable.</p>
+           Word on Windows and the audio is inert: present in the file, but unreachable.</p>
         <p>This page makes it reachable.</p>
 
         <h2>What's actually in the document</h2>
@@ -540,13 +712,13 @@
           <div class="layer"><span class="layer-path">word/media/image1.emf</span>
             <span class="layer-what">The icon you see where the audio sits. Not the audio.</span></div>
           <div class="layer" data-key="1"><span class="layer-path">word/embeddings/oleObject1.bin</span>
-            <span class="layer-what">The audio — wrapped twice.</span></div>
+            <span class="layer-what">The audio, wrapped twice.</span></div>
         </div>
         <p>That <code>.bin</code> is a <b>compound file</b>: the container format Office used
            before 2007, with its own sector allocation table and directory tree. It is, in
            effect, a small filesystem inside your document.</p>
         <p>Inside it, a stream named <code>Package</code> (or <code>\x01Ole10Native</code>)
-           begins with an OLE&nbsp;1.0 Packager header — a short record holding the sender's
+           begins with an OLE&nbsp;1.0 Packager header: a short record holding the sender's
            original filename, the path the file came from on their disk, and the exact byte
            length of what follows. After that record: the original MP3, byte for byte.</p>
         <p>So the audio was never converted or re-encoded. It's the teacher's exact file,
@@ -555,9 +727,11 @@
         <h2>How this page works</h2>
         <p>Everything runs in your browser. The archive is read with JSZip, the compound file
            is parsed here in JavaScript, and the audio comes back as a blob you can play and save.</p>
-        <p>There is no server and no upload. Nothing about your document leaves the tab —
-           you can disconnect from the network after the page loads and it will still work.
-           That matters when the file belongs to someone else's classroom.</p>
+        <p>There is no server and no upload. Nothing about your document leaves the tab.
+           The page loads nothing from anywhere else either: no CDN, no font host, no
+           analytics, no cookies. Once you have this page, you can disconnect from the network
+           entirely and it still works. That matters when the file belongs to someone else's
+           classroom.</p>
 
         <h2>When there's nothing to find</h2>
         <p>If the sender used <i>Insert → Object → Link to file</i>, the audio was never
@@ -566,26 +740,27 @@
            to ask them to send the MP3 as a normal attachment.</p>
 
         <h2>Credits</h2>
-        <p>ZIP reading by <a href="https://stuk.github.io/jszip/" rel="noopener">JSZip</a>.
-           The compound file reader follows Microsoft's
+        <p>ZIP reading by <a href="https://stuk.github.io/jszip/" rel="noopener">JSZip</a>,
+           bundled with this page rather than loaded from anywhere else. The compound file
+           reader follows Microsoft's
            <a href="https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cfb/" rel="noopener">MS-CFB</a>
-           specification. The original post is
-           <a href="https://fosstodon.org/@mariatta/117114000531151134" rel="noopener">on Mastodon</a>.</p>
+           specification.</p>
       </div>
 
       <!-- ---------- 中文 ---------- -->
       <div data-only="zh" hidden>
-        <p>2026 年 8 月，我发了一条关于自己家里刚刚发生的事的帖子。</p>
         <p>我婆婆在上面向新移民开设的英语课。她的老师不是技术背景的人。每当课程需要听力材料时，
-           他就给全班发一封邮件，附件是一份 Word 文档 —— 而 MP3 音频就嵌在这份文档里面。</p>
+           他就给全班发一封邮件，附件是一份 Word 文档，而 MP3 音频就嵌在这份文档里面。</p>
         <p>我们取不出那段音频。并不是哪里坏了，只是家里没有一台 Windows 电脑。</p>
 
         <p class="pull">文件就在那里，却完全够不着。</p>
 
-        <p>站在他的角度，这么做完全合理。Word 允许你把一个声音文件直接放进页面，它会显示成一个小图标，
-           于是你只需发送一个附件，而不是两个。在他的电脑上，这套办法是行得通的。他解决了自己的问题。</p>
+        <p>这事其实很容易发生，也很难指望他事先就知道。Word 允许你把一个声音文件直接放进页面，
+           它会显示成一个小图标，于是你只需要发一个附件，而不是两个。在他的电脑上，声音是能放出来的，
+           也没有任何地方提醒他，换一台电脑就放不出来了。他要备课、要上课，没有理由再去研究文件格式。
+           他用手边的工具解决了自己的问题，换成我们任何人也是这样。</p>
         <p>只是这种格式经不起传递。除了 Windows 上的 Word，用其他任何方式打开这份文档，
-           音频都只是一块死数据 —— 它确实在文件里，却无法取用。</p>
+           音频都只是一块死数据：它确实在文件里，却无法取用。</p>
         <p>这个页面就是用来把它取出来的。</p>
 
         <h2>文档里究竟装了什么</h2>
@@ -596,12 +771,12 @@
           <div class="layer"><span class="layer-path">word/media/image1.emf</span>
             <span class="layer-what">你在音频位置看到的那个图标，并不是音频本身。</span></div>
           <div class="layer" data-key="1"><span class="layer-path">word/embeddings/oleObject1.bin</span>
-            <span class="layer-what">音频本体 —— 外面套了两层包装。</span></div>
+            <span class="layer-what">音频本体，外面套了两层包装。</span></div>
         </div>
         <p>这个 <code>.bin</code> 是一个<b>复合文档</b>：Office 在 2007 年之前使用的容器格式，
            自带扇区分配表和目录树。可以说，它是藏在你文档内部的一个微型文件系统。</p>
         <p>在它里面，有一个名为 <code>Package</code>（或 <code>\x01Ole10Native</code>）的数据流，
-           开头是一段 OLE&nbsp;1.0 Packager 头部 —— 这段短记录保存了发送者的原始文件名、
+           开头是一段 OLE&nbsp;1.0 Packager 头部：这段短记录保存了发送者的原始文件名、
            该文件在其磁盘上的路径，以及紧随其后的数据的精确字节长度。这段记录之后，
            就是原封不动的 MP3。</p>
         <p>也就是说，音频从未被转换或重新编码。那正是老师电脑上的那个文件，只是被埋在两层容器之下。
@@ -610,8 +785,9 @@
         <h2>这个页面是怎么工作的</h2>
         <p>所有处理都在你的浏览器里完成。压缩包由 JSZip 读取，复合文档在这里用 JavaScript 直接解析，
            音频以 blob 的形式返回，可以试听，也可以保存。</p>
-        <p>没有服务器，也没有上传。你的文档不会有任何内容离开这个标签页 ——
-           页面加载完成后，即使断网也照样能用。当文件属于别人的课堂时，这一点尤其重要。</p>
+        <p>没有服务器，也没有上传，你的文档不会有任何内容离开这个标签页。
+           页面本身也不向任何第三方发出请求：没有 CDN，没有字体服务，没有统计追踪，也没有 Cookie。
+           页面到手之后，完全断网也照样能用。当文件属于别人的课堂时，这一点尤其重要。</p>
 
         <h2>如果什么也找不到</h2>
         <p>如果发送者用的是<i>「插入 → 对象 → 链接到文件」</i>，那么音频根本就没有被嵌入进来：
@@ -619,10 +795,10 @@
            到了这一步，诚实的做法是请对方把 MP3 作为普通附件重新发一次。</p>
 
         <h2>致谢</h2>
-        <p>ZIP 读取使用 <a href="https://stuk.github.io/jszip/" rel="noopener">JSZip</a>。
-           复合文档解析遵循微软的
+        <p>ZIP 读取使用 <a href="https://stuk.github.io/jszip/" rel="noopener">JSZip</a>，
+           它随页面一同提供，不从别处加载。复合文档解析遵循微软的
            <a href="https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cfb/" rel="noopener">MS-CFB</a>
-           规范。最初那条帖子在 <a href="https://fosstodon.org/@mariatta/117114000531151134" rel="noopener">Mastodon 上</a>。</p>
+           规范。</p>
       </div>
 
     </div>
@@ -632,8 +808,7 @@
 <footer>
   <div class="wrap foot-in">
     <span data-t="foot.tagline"></span>
-    <a href="#/about" data-t="nav.about">About</a>
-    <a href="https://fosstodon.org/@mariatta/117114000531151134" rel="noopener" data-t="foot.post">The original post</a>
+    <a href="#/about" data-nav="about" data-t="nav.about">About</a>
     <span class="foot-sep" data-t="foot.privacy"></span>
   </div>
 </footer>
@@ -649,7 +824,7 @@ const STR = {
     'nav.about': 'About',
     'hero.eyebrow': 'zip &rarr; ole compound file &rarr; <b>audio</b>',
     'hero.title': "There's a sound file in that Word document.",
-    'hero.standfirst': 'Drop the <strong>.docx</strong> in and this walks the archive, opens any embedded OLE objects it finds, and hands you the audio. Everything runs in this tab &mdash; <strong>the file is never uploaded anywhere.</strong>',
+    'hero.standfirst': 'Drop the <strong>.docx</strong> in and this walks the archive, opens any embedded OLE objects it finds, and hands you the audio. Everything runs in this tab, and <strong>the file is never uploaded anywhere.</strong>',
     'drop.lead': 'Choose files, or drop them here',
     'trace.title': "What's inside",
     'res.title': 'Audio',
@@ -658,14 +833,13 @@ const STR = {
     'res.fromDocs': '{n} files from {d} documents',
     'res.saveAll': 'Save all as ZIP',
     'res.zipping': 'Packing…',
-    'res.zipFailed': 'ZIP failed — save individually',
-    'busy.reading': 'Reading {name} — {i} of {n}',
+    'res.zipFailed': 'ZIP failed, save individually',
+    'busy.reading': 'Reading {name}, {i} of {n}',
     'doc.count': '<b>{n}</b> found',
     'doc.none': 'nothing found',
     'about.eyebrow': 'why this exists',
     'about.title': 'A Word document with a sound inside it.',
-    'foot.tagline': 'Unwrap — audio out of Word documents.',
-    'foot.post': 'The original post',
+    'foot.tagline': 'Unwrap: audio out of Word documents.',
     'foot.privacy': 'Runs entirely in your browser.',
 
     'v.audio': 'audio',
@@ -682,9 +856,9 @@ const STR = {
     'v.rawScan': '└ raw scan',
     'v.noStreams': '└ (no streams)',
 
-    'n.plain': 'Stored uncompressed — no unwrapping needed.',
-    'n.legacy': 'Legacy format — reading compound file directly.',
-    'n.at': 'Audio starts at {off} — located via {via}.',
+    'n.plain': 'Stored uncompressed, no unwrapping needed.',
+    'n.legacy': 'Legacy format, reading compound file directly.',
+    'n.at': 'Audio starts at {off}, located via {via}.',
     'n.sweep': 'Signature match at {off} during full sweep.',
     'n.rawHit': 'Not a compound file, but a {kind} signature appears at {off}.',
     'n.rawMiss': 'Not a compound file and no audio signature inside.',
@@ -702,7 +876,7 @@ const STR = {
     'r.warnBody': "The container header didn't parse, so the start of the audio was located by signature instead. Playback should be fine, but a few trailing bytes of container padding may be attached.",
 
     'e.noneTitle': 'No audio found in this file.',
-    'e.noneA': 'If Word plays the sound for you, the object may be a <em>link</em> to a file on the sender\u2019s machine rather than an embedded copy — in which case the audio was never in the document. Worth asking them to send the MP3 directly.',
+    'e.noneA': 'If Word plays the sound for you, the object may be a <em>link</em> to a file on the sender\u2019s machine rather than an embedded copy, in which case the audio was never in the document. Worth asking them to send the MP3 directly.',
     'e.noneB': 'The listing above shows every part that was inspected, so if something looks like it should have contained the audio, that\u2019s the piece to dig into.',
     'e.badZipTitle': 'That file couldn\u2019t be opened as a Word document.',
     'e.badZipA': 'It may be corrupt, or password-protected. Try opening it in LibreOffice first and re-saving.',
@@ -715,7 +889,7 @@ const STR = {
     'nav.about': '关于',
     'hero.eyebrow': 'zip &rarr; ole 复合文档 &rarr; <b>音频</b>',
     'hero.title': '那份 Word 文档里，藏着一个音频文件。',
-    'hero.standfirst': '把 <strong>.docx</strong> 拖进来，它会遍历文档内部的压缩包，打开其中嵌入的 OLE 对象，然后把音频交给你。全部处理都在这个标签页内完成 &mdash; <strong>文件不会被上传到任何地方。</strong>',
+    'hero.standfirst': '把 <strong>.docx</strong> 拖进来，它会遍历文档内部的压缩包，打开其中嵌入的 OLE 对象，然后把音频交给你。全部处理都在这个标签页内完成，<strong>文件不会被上传到任何地方。</strong>',
     'drop.lead': '选择文件，或把文件拖到这里',
     'trace.title': '文档内部',
     'res.title': '音频',
@@ -724,14 +898,13 @@ const STR = {
     'res.fromDocs': '来自 {d} 份文档的 {n} 个文件',
     'res.saveAll': '打包下载全部',
     'res.zipping': '正在打包…',
-    'res.zipFailed': '打包失败 —— 请逐个保存',
-    'busy.reading': '正在读取 {name} —— 第 {i} / {n} 份',
+    'res.zipFailed': '打包失败，请逐个保存',
+    'busy.reading': '正在读取 {name}，第 {i} / {n} 份',
     'doc.count': '找到 <b>{n}</b> 个',
     'doc.none': '未找到音频',
     'about.eyebrow': '这个页面从何而来',
     'about.title': '一份 Word 文档，里面装着一段声音。',
-    'foot.tagline': 'Unwrap — 从 Word 文档中取出音频。',
-    'foot.post': '最初那条帖子',
+    'foot.tagline': 'Unwrap：从 Word 文档中取出音频。',
     'foot.privacy': '完全在你的浏览器中运行。',
 
     'v.audio': '音频',
@@ -749,8 +922,8 @@ const STR = {
     'v.noStreams': '└ （无数据流）',
 
     'n.plain': '直接存放在文档中，无需拆包。',
-    'n.legacy': '旧版格式 —— 直接按复合文档读取。',
-    'n.at': '音频起始于 {off} —— 定位方式：{via}。',
+    'n.legacy': '旧版格式，直接按复合文档读取。',
+    'n.at': '音频起始于 {off}，定位方式：{via}。',
     'n.sweep': '全量扫描时，在 {off} 处匹配到文件特征码。',
     'n.rawHit': '不是复合文档，但在 {off} 处出现了 {kind} 的特征码。',
     'n.rawMiss': '不是复合文档，内部也没有音频特征码。',
@@ -768,7 +941,7 @@ const STR = {
     'r.warnBody': '容器头部未能解析，因此改用特征码定位音频的起始位置。播放通常没有问题，但末尾可能附带少量容器填充字节。',
 
     'e.noneTitle': '在这个文件中没有找到音频。',
-    'e.noneA': '如果 Word 能为你播放这段声音，那么该对象可能只是一个指向发送者电脑上某个文件的<em>链接</em>，而不是嵌入的副本 —— 这种情况下音频从未真正进入文档。可以请对方直接把 MP3 发过来。',
+    'e.noneA': '如果 Word 能为你播放这段声音，那么该对象可能只是一个指向发送者电脑上某个文件的<em>链接</em>，而不是嵌入的副本，这种情况下音频从未真正进入文档。可以请对方直接把 MP3 发过来。',
     'e.noneB': '上面的清单列出了所有被检查过的部分。如果其中有哪一项看起来本该包含音频，那就是值得深入排查的地方。',
     'e.badZipTitle': '这个文件无法作为 Word 文档打开。',
     'e.badZipA': '它可能已损坏，或者设置了密码。可以先用 LibreOffice 打开并重新保存，再试一次。',
@@ -1034,7 +1207,7 @@ function audioFromStream(bytes) {
 }
 
 /* ============================================================
-   Analysis — produces data, renders nothing
+   Analysis: produces data, renders nothing
    ============================================================ */
 
 const MIME = { mp3:'audio/mpeg', wav:'audio/wav', ogg:'audio/ogg', flac:'audio/flac',
@@ -1326,8 +1499,8 @@ function setLang(next, remember = true) {
   });
 
   document.title = lang === 'zh'
-    ? 'Unwrap — 从 Word 文档中取出音频'
-    : 'Unwrap — pull audio out of a Word document';
+    ? 'Unwrap：从 Word 文档中取出音频'
+    : 'Unwrap: pull audio out of a Word document';
 
   renderResults();
 
@@ -1386,8 +1559,8 @@ async function handle(fileList) {
   busy.hidden = true;
 }
 
-// Filenames repeat across documents — lesson-1.docx and lesson-2.docx both yield
-// audio.mp3 — so disambiguate inside the archive rather than silently overwriting.
+// Filenames repeat across documents: lesson-1.docx and lesson-2.docx both yield
+// audio.mp3, so disambiguate inside the archive rather than silently overwriting.
 function uniqueName(taken, name) {
   if (!taken.has(name)) { taken.add(name); return name; }
   const dot = name.lastIndexOf('.');
