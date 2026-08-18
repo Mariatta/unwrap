@@ -63,6 +63,26 @@ Each looks like over-engineering and is not. All are covered by tests. Run
   `loadAsync` rejects the page's typed arrays. Real browsers have one realm. Don't
   "fix" this in `index.html`.
 
+## The page makes no third-party requests
+
+JSZip is vendored at `vendor/jszip.min.js` and the webfonts at `vendor/fonts/`
+(latin and latin-ext only; Chinese uses system CJK faces). Nothing is loaded from a
+CDN or a font host, there is no analytics and there are no cookies, and the About
+page says so without qualification in both languages. Re-adding any external
+`<link>` or `<script src>` breaks that claim, so don't: add the file to `vendor/`
+instead, with its licence text.
+
+Font files come from Google Fonts' css2 endpoint, latin and latin-ext subsets of
+the exact weights in use. All three families are SIL OFL 1.1 and their licence
+texts sit beside them in `vendor/fonts/`.
+
+## Navigation and the About page
+
+About is reachable from the footer only, not the top bar. The footer link carries
+`data-nav="about"` because routing sets `aria-current` from `[data-nav]`, and
+`tests/ui.test.mjs` asserts on both. The served page does not link out to Mastodon
+at all: that link lives in the READMEs.
+
 ## Tests import the app by slicing it
 
 `tests/helpers.mjs` extracts the core out of `index.html` by matching the section
@@ -70,6 +90,8 @@ banner comments. **Rename those comments and the tests fail with "core markers n
 found".** Update `helpers.mjs` in the same commit.
 
 ## Tone
+
+No em dashes anywhere, in the page or the docs: a colon or a comma instead.
 
 The READMEs centre the student: someone non-technical who just wants to do her
 homework, and who should not have to learn a terminal to hear this week's listening

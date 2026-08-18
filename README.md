@@ -8,10 +8,14 @@ Pull the audio back out of a Word document that has an MP3 buried inside it.
 
 ## Nothing is uploaded
 
-Your document never leaves your computer. There is no server, no upload, no
-account, and no analytics: the page reads the file with the browser's own APIs and
-writes the audio straight back to your downloads folder. You can open the page,
-disconnect from the network, and it still works.
+Your document never leaves your computer. There is no server, no upload, and no
+account: the page reads the file with the browser's own APIs and writes the audio
+straight back to your downloads folder.
+
+It also contacts nobody else. No CDN, no font host, no analytics, no cookies:
+JSZip and the webfonts are served from this repository, so loading the page makes
+no third-party requests at all. Once you have the page, you can disconnect from the
+network entirely and it still works.
 
 ## Why this exists
 
@@ -80,7 +84,9 @@ There is no build step.
 
 ## Credits
 
-ZIP reading and writing by [JSZip](https://stuk.github.io/jszip/) (MIT).
+ZIP reading and writing by [JSZip](https://stuk.github.io/jszip/) (MIT), bundled in
+`vendor/`. Typefaces are Bricolage Grotesque, Public Sans, and IBM Plex Mono, all
+SIL OFL 1.1, self-hosted in `vendor/fonts/` with their licence texts.
 
 ## License
 
