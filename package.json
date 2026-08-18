@@ -12,7 +12,7 @@
     "test:i18n": "node tests/i18n.test.mjs",
     "test:ui": "node tests/ui.test.mjs",
     "test:multidoc": "node tests/multidoc.test.mjs",
-    "serve": "python3 -m http.server 8000"
+    "serve": "python3 tools/serve.py"
   },
   "devDependencies": {
     "jsdom": "^24.0.0",
