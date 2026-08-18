@@ -1,0 +1,1445 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unwrap — pull audio out of a Word document</title>
+<meta name="description" content="Extract an MP3 embedded inside a Word document. Runs entirely in your browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700;12..96,800&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<style>
+  :root {
+    --paper:   #eef1f4;
+    --card:    #ffffff;
+    --ink:     #141c26;
+    --muted:   #67747f;
+    --rule:    #d2d9e0;
+    --hit:     #5b21d6;
+    --hit-bg:  #f0eaff;
+    --warn:    #a8480f;
+    --warn-bg: #fdf0e6;
+    --display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+    --body:    "Public Sans", ui-sans-serif, system-ui, sans-serif;
+    --mono:    "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  /* Chinese needs system CJK faces — the Latin display face has no coverage,
+     and the tight negative tracking that suits it is wrong for Han characters. */
+  html[lang="zh"] {
+    --display: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+               "Noto Sans CJK SC", "Source Han Sans SC", sans-serif;
+    --body:    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+               "Noto Sans CJK SC", "Source Han Sans SC", sans-serif;
+  }
+  html[lang="zh"] h1 { letter-spacing: 0; line-height: 1.14; font-weight: 700; }
+  html[lang="zh"] h2 { letter-spacing: 0; }
+  html[lang="zh"] .standfirst { line-height: 1.75; }
+  html[lang="zh"] .prose p, html[lang="zh"] .prose li { line-height: 1.85; }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.55;
+  }
+
+  .wrap { max-width: 780px; margin: 0 auto; padding: 0 24px; }
+
+  /* ---------- nav ---------- */
+
+  .topbar {
+    border-bottom: 1px solid var(--rule);
+    background: var(--paper);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .topbar-in {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding-top: 14px;
+    padding-bottom: 14px;
+  }
+
+  .mark {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 17px;
+    letter-spacing: -0.03em;
+    text-decoration: none;
+    color: var(--ink);
+    margin-right: auto;
+  }
+  .mark span { color: var(--hit); }
+
+  .navlink {
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    color: var(--muted);
+    padding-bottom: 2px;
+    border-bottom: 1.5px solid transparent;
+  }
+  .navlink:hover { color: var(--ink); }
+  .navlink[aria-current="page"] { color: var(--ink); border-bottom-color: var(--hit); }
+
+  .langswitch {
+    display: flex;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    overflow: hidden;
+    background: var(--card);
+  }
+  .langswitch button {
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .langswitch button + button { border-left: 1px solid var(--rule); }
+  .langswitch button:hover { color: var(--ink); }
+  .langswitch button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+  .langswitch button:focus-visible { outline: 2px solid var(--hit); outline-offset: -2px; }
+
+  /* ---------- shared type ---------- */
+
+  main { padding: 48px 0 88px; display: block; }
+  main[hidden] { display: none; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 18px;
+  }
+  .eyebrow b { color: var(--hit); font-weight: 600; }
+
+  h1 {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: clamp(36px, 7.6vw, 64px);
+    line-height: 0.96;
+    letter-spacing: -0.035em;
+    margin: 0 0 20px;
+  }
+
+  h2 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 21px;
+    letter-spacing: -0.025em;
+    margin: 44px 0 12px;
+  }
+
+  .standfirst {
+    font-size: 17.5px;
+    color: var(--muted);
+    max-width: 56ch;
+    margin: 0 0 40px;
+  }
+  .standfirst strong { color: var(--ink); font-weight: 600; }
+
+  a { color: var(--hit); }
+
+  /* ---------- drop target ---------- */
+
+  .drop {
+    display: block;
+    width: 100%;
+    background: var(--card);
+    border: 1.5px dashed var(--rule);
+    border-radius: 4px;
+    padding: 52px 28px;
+    text-align: center;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+    transition: border-color .15s, background .15s;
+  }
+  .drop:hover { border-color: var(--hit); }
+  .drop:focus-visible { outline: 2px solid var(--hit); outline-offset: 3px; }
+  .drop[data-over="1"] { border-color: var(--hit); background: var(--hit-bg); border-style: solid; }
+
+  .drop-lead {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 21px;
+    letter-spacing: -0.02em;
+    display: block;
+    margin-bottom: 6px;
+  }
+  .drop-sub { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+  /* ---------- progress ---------- */
+
+  .busy {
+    margin-top: 28px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  html[lang="zh"] .busy { font-family: var(--body); }
+  .busy[hidden] { display: none; }
+  .busy::before {
+    content: "";
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--hit);
+    animation: pulse 1s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: .25; } 50% { opacity: 1; } }
+
+  /* ---------- results (above the listing — this is what people came for) ---------- */
+
+  .results { margin-top: 40px; }
+  .results[hidden] { display: none; }
+
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1.5px solid var(--ink);
+    padding-bottom: 7px;
+    margin-bottom: 18px;
+  }
+  .sec-title { font-family: var(--display); font-weight: 700; font-size: 15px; margin-right: auto; }
+  .sec-meta { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+  html[lang="zh"] .sec-meta { font-family: var(--body); }
+
+  .saveall {
+    font-family: var(--body);
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border: 1.5px solid var(--ink);
+    background: transparent;
+    color: var(--ink);
+    border-radius: 3px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .saveall:hover { background: var(--ink); color: #fff; }
+  .saveall:disabled { opacity: .5; cursor: default; }
+  .saveall:focus-visible { outline: 2px solid var(--hit); outline-offset: 2px; }
+
+  .cards { display: grid; gap: 14px; }
+
+  /* ---------- trace readout ---------- */
+
+  .trace { margin-top: 48px; }
+  .trace[hidden] { display: none; }
+
+  .trace-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 1.5px solid var(--ink);
+    padding-bottom: 7px;
+    margin-bottom: 4px;
+  }
+  .trace-title { font-family: var(--display); font-weight: 700; font-size: 15px; }
+  .trace-meta { font-family: var(--mono); font-size: 11.5px; color: var(--muted); text-align: right; }
+  html[lang="zh"] .trace-meta { font-family: var(--body); }
+
+  .doc-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 1px solid var(--rule);
+    padding: 22px 0 6px;
+  }
+  .doc-name {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .doc-meta { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .doc-meta b { color: var(--hit); font-weight: 600; }
+  html[lang="zh"] .doc-meta { font-family: var(--body); }
+
+  .row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 14px;
+    align-items: baseline;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .row-path { overflow-wrap: anywhere; color: var(--muted); }
+  .row-size { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+  .row-verdict { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+  html[lang="zh"] .row-verdict { font-family: var(--body); letter-spacing: .04em; }
+  html[lang="zh"] .row-note   { font-family: var(--body); }
+
+  .row[data-v="hit"] { background: var(--hit-bg); }
+  .row[data-v="hit"] .row-path { color: var(--ink); font-weight: 600; }
+  .row[data-v="hit"] .row-verdict { color: var(--hit); font-weight: 600; }
+  .row[data-v="probe"] .row-path,
+  .row[data-v="probe"] .row-verdict { color: var(--ink); }
+  .row[data-v="skip"] { opacity: .5; }
+  .row[data-v="fail"] .row-verdict { color: var(--warn); }
+
+  .row-note {
+    grid-column: 1 / -1;
+    color: var(--muted);
+    font-size: 11.5px;
+    padding-left: 18px;
+    border-left: 2px solid var(--hit);
+    margin-top: 5px;
+  }
+
+  .anim { animation: slide .28s ease both; }
+  @keyframes slide { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+
+  /* ---------- result card ---------- */
+
+  .found {
+    background: var(--card);
+    border: 1.5px solid var(--ink);
+    border-radius: 4px;
+    padding: 20px 22px 18px;
+  }
+  .found-doc {
+    font-size: 13px;
+    color: var(--hit);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+    margin-bottom: 3px;
+  }
+  .found-name {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 19px;
+    letter-spacing: -0.02em;
+    overflow-wrap: anywhere;
+    margin-bottom: 3px;
+  }
+  .found-from {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+    margin-bottom: 14px;
+  }
+  .found audio { width: 100%; margin-bottom: 14px; }
+
+  .save {
+    display: inline-block;
+    background: var(--hit);
+    color: #fff;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 9px 18px;
+    border-radius: 3px;
+  }
+  .save:hover { background: #4a17b8; }
+  .save:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  .note {
+    border-left: 2px solid var(--warn);
+    background: var(--warn-bg);
+    padding: 14px 16px;
+    font-size: 14px;
+    border-radius: 0 3px 3px 0;
+    margin-top: 14px;
+  }
+  .empty {
+    border-left: 2px solid var(--ink);
+    padding: 14px 16px;
+    font-size: 14.5px;
+  }
+  .empty p { margin: 0 0 8px; }
+  .empty p:last-child { margin: 0; }
+
+  code {
+    font-family: var(--mono);
+    font-size: .88em;
+    background: var(--card);
+    padding: 1px 5px;
+    border-radius: 2px;
+    overflow-wrap: anywhere;
+  }
+
+  /* ---------- about ---------- */
+
+  .prose { max-width: 62ch; }
+  .prose p { margin: 0 0 15px; }
+  .prose ul { margin: 0 0 15px; padding-left: 0; list-style: none; }
+  .prose li { margin-bottom: 12px; padding-left: 14px; border-left: 2px solid var(--rule); }
+  .prose li b { font-weight: 600; }
+
+  .pull {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(20px, 3.4vw, 26px);
+    line-height: 1.3;
+    letter-spacing: -0.025em;
+    border-left: 3px solid var(--hit);
+    padding: 4px 0 4px 20px;
+    margin: 32px 0;
+    max-width: 26ch;
+  }
+  html[lang="zh"] .pull { letter-spacing: 0; line-height: 1.5; max-width: 22ch; }
+
+  .layers { margin: 0 0 15px; }
+  .layer {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    padding: 9px 0 9px 0;
+    border-bottom: 1px solid var(--rule);
+    display: grid;
+    grid-template-columns: minmax(0, 20em) 1fr;
+    gap: 6px 16px;
+    align-items: baseline;
+  }
+  .layer:first-child { border-top: 1.5px solid var(--ink); }
+  .layer-path { overflow-wrap: anywhere; font-weight: 500; }
+  .layer-what { color: var(--muted); font-family: var(--body); font-size: 13.5px; }
+  .layer[data-key="1"] .layer-path { color: var(--hit); }
+
+  /* ---------- footer ---------- */
+
+  footer { border-top: 1px solid var(--rule); padding: 22px 0 56px; }
+  .foot-in {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+    align-items: baseline;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .foot-in a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+  .foot-in a:hover { color: var(--hit); }
+  .foot-sep { margin-left: auto; }
+
+  [hidden] { display: none !important; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .anim { animation: none; }
+    html { scroll-behavior: auto; }
+    * { transition: none !important; }
+  }
+
+  @media (max-width: 560px) {
+    .wrap { padding: 0 16px; }
+    main { padding: 32px 0 56px; }
+    .row { grid-template-columns: 1fr auto; }
+    .row-size { display: none; }
+    .layer { grid-template-columns: 1fr; }
+    .topbar-in { gap: 16px; }
+    .navlink { font-size: 13px; }
+    .foot-sep { margin-left: 0; }
+  }
+</style>
+
+<header class="topbar">
+  <div class="wrap topbar-in">
+    <a class="mark" href="#/">Unwrap<span>.</span></a>
+    <a class="navlink" href="#/"      data-nav="extract" data-t="nav.extract">Extract</a>
+    <a class="navlink" href="#/about" data-nav="about"   data-t="nav.about">About</a>
+    <div class="langswitch" role="group" aria-label="Language">
+      <button type="button" data-lang="en" aria-pressed="true">EN</button>
+      <button type="button" data-lang="zh" aria-pressed="false">中文</button>
+    </div>
+  </div>
+</header>
+
+<!-- ============================ EXTRACT ============================ -->
+<main id="view-extract">
+  <div class="wrap">
+    <p class="eyebrow" data-thtml="hero.eyebrow"></p>
+    <h1 data-t="hero.title"></h1>
+    <p class="standfirst" data-thtml="hero.standfirst"></p>
+
+    <button class="drop" id="drop" type="button">
+      <span class="drop-lead" data-t="drop.lead"></span>
+      <span class="drop-sub">.docx &nbsp;.docm &nbsp;.doc &nbsp;.pptx &nbsp;.xlsx</span>
+    </button>
+    <input type="file" id="file" hidden multiple
+           accept=".docx,.docm,.doc,.dotx,.pptx,.ppt,.xlsx,.xls">
+
+    <p class="busy" id="busy" hidden></p>
+
+    <!-- The audio is the thing people came for, so it sits above the listing. -->
+    <section class="results" id="results" hidden>
+      <div class="sec-head">
+        <span class="sec-title" data-t="res.title"></span>
+        <span class="sec-meta" id="resMeta"></span>
+        <button class="saveall" id="saveAll" type="button" hidden></button>
+      </div>
+      <div class="cards" id="cards"></div>
+    </section>
+
+    <section class="trace" id="trace" hidden>
+      <div class="trace-head">
+        <span class="trace-title" data-t="trace.title"></span>
+        <span class="trace-meta" id="traceMeta"></span>
+      </div>
+      <div id="rows"></div>
+    </section>
+  </div>
+</main>
+
+<!-- ============================= ABOUT ============================= -->
+<main id="view-about" hidden>
+  <div class="wrap">
+
+    <p class="eyebrow" data-t="about.eyebrow"></p>
+    <h1 data-t="about.title"></h1>
+
+    <div class="prose">
+
+      <!-- ---------- English ---------- -->
+      <div data-only="en">
+        <p>In August 2026 I posted about something that had just happened in my family.</p>
+        <p>My mother-in-law takes English classes for new immigrants. Her teacher isn't a
+           technical person. When a lesson needs a listening exercise, he emails the class a
+           Word document — with the MP3 audio file embedded inside it.</p>
+        <p>We couldn't get the audio out. Nothing was broken. Nobody in the house runs Windows.</p>
+
+        <p class="pull">The file was right there, and completely out of reach.</p>
+
+        <p>If you're him, this is a reasonable thing to do. Word lets you drop a sound file
+           onto a page, it appears as a small icon, and you send one attachment instead of two.
+           On his computer, it works. He solved his problem.</p>
+        <p>The format just doesn't survive the trip. Open that document in anything other than
+           Word on Windows and the audio is inert — present in the file, but unreachable.</p>
+        <p>This page makes it reachable.</p>
+
+        <h2>What's actually in the document</h2>
+        <p>A <code>.docx</code> is a ZIP archive. Unzip one from a lesson like this and the
+           relevant parts are:</p>
+        <div class="layers">
+          <div class="layer"><span class="layer-path">word/document.xml</span>
+            <span class="layer-what">The text of the page.</span></div>
+          <div class="layer"><span class="layer-path">word/media/image1.emf</span>
+            <span class="layer-what">The icon you see where the audio sits. Not the audio.</span></div>
+          <div class="layer" data-key="1"><span class="layer-path">word/embeddings/oleObject1.bin</span>
+            <span class="layer-what">The audio — wrapped twice.</span></div>
+        </div>
+        <p>That <code>.bin</code> is a <b>compound file</b>: the container format Office used
+           before 2007, with its own sector allocation table and directory tree. It is, in
+           effect, a small filesystem inside your document.</p>
+        <p>Inside it, a stream named <code>Package</code> (or <code>\x01Ole10Native</code>)
+           begins with an OLE&nbsp;1.0 Packager header — a short record holding the sender's
+           original filename, the path the file came from on their disk, and the exact byte
+           length of what follows. After that record: the original MP3, byte for byte.</p>
+        <p>So the audio was never converted or re-encoded. It's the teacher's exact file,
+           sitting two containers deep. Reading it out is a matter of knowing where to look.</p>
+
+        <h2>How this page works</h2>
+        <p>Everything runs in your browser. The archive is read with JSZip, the compound file
+           is parsed here in JavaScript, and the audio comes back as a blob you can play and save.</p>
+        <p>There is no server and no upload. Nothing about your document leaves the tab —
+           you can disconnect from the network after the page loads and it will still work.
+           That matters when the file belongs to someone else's classroom.</p>
+
+        <h2>When there's nothing to find</h2>
+        <p>If the sender used <i>Insert → Object → Link to file</i>, the audio was never
+           embedded at all: the document holds only a path to a file on their own computer.
+           You'll see the icon and no payload. That's the point at which the honest answer is
+           to ask them to send the MP3 as a normal attachment.</p>
+
+        <h2>Credits</h2>
+        <p>ZIP reading by <a href="https://stuk.github.io/jszip/" rel="noopener">JSZip</a>.
+           The compound file reader follows Microsoft's
+           <a href="https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cfb/" rel="noopener">MS-CFB</a>
+           specification. The original post is
+           <a href="https://fosstodon.org/@mariatta/117114000531151134" rel="noopener">on Mastodon</a>.</p>
+      </div>
+
+      <!-- ---------- 中文 ---------- -->
+      <div data-only="zh" hidden>
+        <p>2026 年 8 月，我发了一条关于自己家里刚刚发生的事的帖子。</p>
+        <p>我婆婆在上面向新移民开设的英语课。她的老师不是技术背景的人。每当课程需要听力材料时，
+           他就给全班发一封邮件，附件是一份 Word 文档 —— 而 MP3 音频就嵌在这份文档里面。</p>
+        <p>我们取不出那段音频。并不是哪里坏了，只是家里没有一台 Windows 电脑。</p>
+
+        <p class="pull">文件就在那里，却完全够不着。</p>
+
+        <p>站在他的角度，这么做完全合理。Word 允许你把一个声音文件直接放进页面，它会显示成一个小图标，
+           于是你只需发送一个附件，而不是两个。在他的电脑上，这套办法是行得通的。他解决了自己的问题。</p>
+        <p>只是这种格式经不起传递。除了 Windows 上的 Word，用其他任何方式打开这份文档，
+           音频都只是一块死数据 —— 它确实在文件里，却无法取用。</p>
+        <p>这个页面就是用来把它取出来的。</p>
+
+        <h2>文档里究竟装了什么</h2>
+        <p><code>.docx</code> 本质上是一个 ZIP 压缩包。把这样一份课件解压开，关键的几个部分是：</p>
+        <div class="layers">
+          <div class="layer"><span class="layer-path">word/document.xml</span>
+            <span class="layer-what">页面上的正文。</span></div>
+          <div class="layer"><span class="layer-path">word/media/image1.emf</span>
+            <span class="layer-what">你在音频位置看到的那个图标，并不是音频本身。</span></div>
+          <div class="layer" data-key="1"><span class="layer-path">word/embeddings/oleObject1.bin</span>
+            <span class="layer-what">音频本体 —— 外面套了两层包装。</span></div>
+        </div>
+        <p>这个 <code>.bin</code> 是一个<b>复合文档</b>：Office 在 2007 年之前使用的容器格式，
+           自带扇区分配表和目录树。可以说，它是藏在你文档内部的一个微型文件系统。</p>
+        <p>在它里面，有一个名为 <code>Package</code>（或 <code>\x01Ole10Native</code>）的数据流，
+           开头是一段 OLE&nbsp;1.0 Packager 头部 —— 这段短记录保存了发送者的原始文件名、
+           该文件在其磁盘上的路径，以及紧随其后的数据的精确字节长度。这段记录之后，
+           就是原封不动的 MP3。</p>
+        <p>也就是说，音频从未被转换或重新编码。那正是老师电脑上的那个文件，只是被埋在两层容器之下。
+           要把它读出来，无非是知道该往哪里找。</p>
+
+        <h2>这个页面是怎么工作的</h2>
+        <p>所有处理都在你的浏览器里完成。压缩包由 JSZip 读取，复合文档在这里用 JavaScript 直接解析，
+           音频以 blob 的形式返回，可以试听，也可以保存。</p>
+        <p>没有服务器，也没有上传。你的文档不会有任何内容离开这个标签页 ——
+           页面加载完成后，即使断网也照样能用。当文件属于别人的课堂时，这一点尤其重要。</p>
+
+        <h2>如果什么也找不到</h2>
+        <p>如果发送者用的是<i>「插入 → 对象 → 链接到文件」</i>，那么音频根本就没有被嵌入进来：
+           文档里保存的只是一条指向他自己电脑上某个文件的路径。你只会看到图标，看不到数据。
+           到了这一步，诚实的做法是请对方把 MP3 作为普通附件重新发一次。</p>
+
+        <h2>致谢</h2>
+        <p>ZIP 读取使用 <a href="https://stuk.github.io/jszip/" rel="noopener">JSZip</a>。
+           复合文档解析遵循微软的
+           <a href="https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cfb/" rel="noopener">MS-CFB</a>
+           规范。最初那条帖子在 <a href="https://fosstodon.org/@mariatta/117114000531151134" rel="noopener">Mastodon 上</a>。</p>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap foot-in">
+    <span data-t="foot.tagline"></span>
+    <a href="#/about" data-t="nav.about">About</a>
+    <a href="https://fosstodon.org/@mariatta/117114000531151134" rel="noopener" data-t="foot.post">The original post</a>
+    <span class="foot-sep" data-t="foot.privacy"></span>
+  </div>
+</footer>
+
+<script>
+/* ============================================================
+   Strings
+   ============================================================ */
+
+const STR = {
+  en: {
+    'nav.extract': 'Extract',
+    'nav.about': 'About',
+    'hero.eyebrow': 'zip &rarr; ole compound file &rarr; <b>audio</b>',
+    'hero.title': "There's a sound file in that Word document.",
+    'hero.standfirst': 'Drop the <strong>.docx</strong> in and this walks the archive, opens any embedded OLE objects it finds, and hands you the audio. Everything runs in this tab &mdash; <strong>the file is never uploaded anywhere.</strong>',
+    'drop.lead': 'Choose files, or drop them here',
+    'trace.title': "What's inside",
+    'res.title': 'Audio',
+    'res.one': '1 file',
+    'res.many': '{n} files',
+    'res.fromDocs': '{n} files from {d} documents',
+    'res.saveAll': 'Save all as ZIP',
+    'res.zipping': 'Packing…',
+    'res.zipFailed': 'ZIP failed — save individually',
+    'busy.reading': 'Reading {name} — {i} of {n}',
+    'doc.count': '<b>{n}</b> found',
+    'doc.none': 'nothing found',
+    'about.eyebrow': 'why this exists',
+    'about.title': 'A Word document with a sound inside it.',
+    'foot.tagline': 'Unwrap — audio out of Word documents.',
+    'foot.post': 'The original post',
+    'foot.privacy': 'Runs entirely in your browser.',
+
+    'v.audio': 'audio',
+    'v.audioFound': 'audio found',
+    'v.oleObject': 'OLE object',
+    'v.oleFile': 'OLE file',
+    'v.icon': 'icon / image',
+    'v.markup': 'markup',
+    'v.metadata': 'metadata',
+    'v.noAudio': 'no audio',
+    'v.unreadable': 'unreadable',
+    'v.unknown': 'unknown',
+    'v.empty': 'empty',
+    'v.rawScan': '└ raw scan',
+    'v.noStreams': '└ (no streams)',
+
+    'n.plain': 'Stored uncompressed — no unwrapping needed.',
+    'n.legacy': 'Legacy format — reading compound file directly.',
+    'n.at': 'Audio starts at {off} — located via {via}.',
+    'n.sweep': 'Signature match at {off} during full sweep.',
+    'n.rawHit': 'Not a compound file, but a {kind} signature appears at {off}.',
+    'n.rawMiss': 'Not a compound file and no audio signature inside.',
+    'n.badZip': 'Not a valid archive: {msg}',
+    'n.notDoc': 'Not a zip archive or an OLE compound file.',
+
+    'via.body': 'the stream body',
+    'via.packager': 'the Packager header',
+    'via.packagerScan': 'the Packager header, realigned to magic bytes',
+    'via.scan': 'a magic-byte scan',
+
+    'r.save': 'Save {ext}',
+    'r.from': '{size} · {kind} · from {source}',
+    'r.warnTitle': 'Recovered by scanning for magic bytes.',
+    'r.warnBody': "The container header didn't parse, so the start of the audio was located by signature instead. Playback should be fine, but a few trailing bytes of container padding may be attached.",
+
+    'e.noneTitle': 'No audio found in this file.',
+    'e.noneA': 'If Word plays the sound for you, the object may be a <em>link</em> to a file on the sender\u2019s machine rather than an embedded copy — in which case the audio was never in the document. Worth asking them to send the MP3 directly.',
+    'e.noneB': 'The listing above shows every part that was inspected, so if something looks like it should have contained the audio, that\u2019s the piece to dig into.',
+    'e.badZipTitle': 'That file couldn\u2019t be opened as a Word document.',
+    'e.badZipA': 'It may be corrupt, or password-protected. Try opening it in LibreOffice first and re-saving.',
+    'e.notDocTitle': 'That doesn\u2019t look like a Word document.',
+    'e.notDocA': 'Expected a file starting with <code>PK</code> (.docx) or <code>D0 CF 11 E0</code> (.doc).'
+  },
+
+  zh: {
+    'nav.extract': '提取',
+    'nav.about': '关于',
+    'hero.eyebrow': 'zip &rarr; ole 复合文档 &rarr; <b>音频</b>',
+    'hero.title': '那份 Word 文档里，藏着一个音频文件。',
+    'hero.standfirst': '把 <strong>.docx</strong> 拖进来，它会遍历文档内部的压缩包，打开其中嵌入的 OLE 对象，然后把音频交给你。全部处理都在这个标签页内完成 &mdash; <strong>文件不会被上传到任何地方。</strong>',
+    'drop.lead': '选择文件，或把文件拖到这里',
+    'trace.title': '文档内部',
+    'res.title': '音频',
+    'res.one': '1 个文件',
+    'res.many': '{n} 个文件',
+    'res.fromDocs': '来自 {d} 份文档的 {n} 个文件',
+    'res.saveAll': '打包下载全部',
+    'res.zipping': '正在打包…',
+    'res.zipFailed': '打包失败 —— 请逐个保存',
+    'busy.reading': '正在读取 {name} —— 第 {i} / {n} 份',
+    'doc.count': '找到 <b>{n}</b> 个',
+    'doc.none': '未找到音频',
+    'about.eyebrow': '这个页面从何而来',
+    'about.title': '一份 Word 文档，里面装着一段声音。',
+    'foot.tagline': 'Unwrap — 从 Word 文档中取出音频。',
+    'foot.post': '最初那条帖子',
+    'foot.privacy': '完全在你的浏览器中运行。',
+
+    'v.audio': '音频',
+    'v.audioFound': '找到音频',
+    'v.oleObject': 'OLE 对象',
+    'v.oleFile': 'OLE 文件',
+    'v.icon': '图标 / 图片',
+    'v.markup': '标记文件',
+    'v.metadata': '元数据',
+    'v.noAudio': '无音频',
+    'v.unreadable': '无法读取',
+    'v.unknown': '未知格式',
+    'v.empty': '空',
+    'v.rawScan': '└ 原始扫描',
+    'v.noStreams': '└ （无数据流）',
+
+    'n.plain': '直接存放在文档中，无需拆包。',
+    'n.legacy': '旧版格式 —— 直接按复合文档读取。',
+    'n.at': '音频起始于 {off} —— 定位方式：{via}。',
+    'n.sweep': '全量扫描时，在 {off} 处匹配到文件特征码。',
+    'n.rawHit': '不是复合文档，但在 {off} 处出现了 {kind} 的特征码。',
+    'n.rawMiss': '不是复合文档，内部也没有音频特征码。',
+    'n.badZip': '不是有效的压缩包：{msg}',
+    'n.notDoc': '既不是 zip 压缩包，也不是 OLE 复合文档。',
+
+    'via.body': '数据流本体',
+    'via.packager': 'Packager 头部',
+    'via.packagerScan': 'Packager 头部（并按特征字节重新对齐）',
+    'via.scan': '特征字节扫描',
+
+    'r.save': '保存 {ext}',
+    'r.from': '{size} · {kind} · 来自 {source}',
+    'r.warnTitle': '通过扫描特征字节恢复。',
+    'r.warnBody': '容器头部未能解析，因此改用特征码定位音频的起始位置。播放通常没有问题，但末尾可能附带少量容器填充字节。',
+
+    'e.noneTitle': '在这个文件中没有找到音频。',
+    'e.noneA': '如果 Word 能为你播放这段声音，那么该对象可能只是一个指向发送者电脑上某个文件的<em>链接</em>，而不是嵌入的副本 —— 这种情况下音频从未真正进入文档。可以请对方直接把 MP3 发过来。',
+    'e.noneB': '上面的清单列出了所有被检查过的部分。如果其中有哪一项看起来本该包含音频，那就是值得深入排查的地方。',
+    'e.badZipTitle': '这个文件无法作为 Word 文档打开。',
+    'e.badZipA': '它可能已损坏，或者设置了密码。可以先用 LibreOffice 打开并重新保存，再试一次。',
+    'e.notDocTitle': '这看起来不像是一份 Word 文档。',
+    'e.notDocA': '期望文件以 <code>PK</code>（.docx）或 <code>D0 CF 11 E0</code>（.doc）开头。'
+  }
+};
+
+let lang = 'en';
+
+function t(key, vars) {
+  let s = (STR[lang] && STR[lang][key]) || STR.en[key] || key;
+  if (vars) for (const k in vars) s = s.split('{' + k + '}').join(vars[k]);
+  return s;
+}
+
+/* ============================================================
+   OLE / Compound File Binary reader (MS-CFB)
+   ============================================================ */
+
+const ENDOFCHAIN = 0xFFFFFFFE, FREESECT = 0xFFFFFFFF;
+
+function parseCFB(buf) {
+  const sig = [0xD0,0xCF,0x11,0xE0,0xA1,0xB1,0x1A,0xE1];
+  if (buf.length < 512) return null;
+  for (let i = 0; i < 8; i++) if (buf[i] !== sig[i]) return null;
+
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const sectorSize     = 1 << dv.getUint16(0x1E, true);
+  const miniSectorSize = 1 << dv.getUint16(0x20, true);
+  const dirStart       = dv.getUint32(0x30, true);
+  const miniCutoff     = dv.getUint32(0x38, true);
+  const miniFatStart   = dv.getUint32(0x3C, true);
+  const difatStart     = dv.getUint32(0x44, true);
+
+  if (sectorSize < 128 || sectorSize > 1 << 20) return null;
+  const secOff = n => (n + 1) * sectorSize;
+
+  // --- DIFAT: 109 entries live in the header, the rest chain through sectors
+  const fatSectors = [];
+  for (let i = 0; i < 109; i++) {
+    const s = dv.getUint32(0x4C + i * 4, true);
+    if (s === FREESECT || s === ENDOFCHAIN) break;
+    fatSectors.push(s);
+  }
+  let d = difatStart, guard = 0;
+  while (d !== ENDOFCHAIN && d !== FREESECT && guard++ < 1e6) {
+    const base = secOff(d);
+    if (base + sectorSize > buf.length) break;
+    const per = sectorSize / 4 - 1;
+    for (let i = 0; i < per; i++) {
+      const s = dv.getUint32(base + i * 4, true);
+      if (s !== FREESECT && s !== ENDOFCHAIN) fatSectors.push(s);
+    }
+    d = dv.getUint32(base + per * 4, true);
+  }
+
+  // --- FAT
+  const perSec = sectorSize / 4;
+  const fat = new Uint32Array(fatSectors.length * perSec);
+  let k = 0;
+  for (const s of fatSectors) {
+    const base = secOff(s);
+    for (let i = 0; i < perSec; i++) {
+      fat[k++] = (base + i * 4 + 4 <= buf.length) ? dv.getUint32(base + i * 4, true) : FREESECT;
+    }
+  }
+
+  const chain = start => {
+    const out = [], seen = new Set();
+    let c = start;
+    while (c !== ENDOFCHAIN && c !== FREESECT && c < fat.length && !seen.has(c)) {
+      seen.add(c); out.push(c); c = fat[c];
+    }
+    return out;
+  };
+
+  const readChain = (start, size) => {
+    const secs = chain(start);
+    const out = new Uint8Array(secs.length * sectorSize);
+    let o = 0;
+    for (const s of secs) {
+      const base = secOff(s);
+      if (base < buf.length) out.set(buf.subarray(base, Math.min(base + sectorSize, buf.length)), o);
+      o += sectorSize;
+    }
+    return size != null ? out.subarray(0, Math.min(size, out.length)) : out;
+  };
+
+  // --- MiniFAT
+  let miniFat = new Uint32Array(0);
+  if (miniFatStart !== ENDOFCHAIN && miniFatStart !== FREESECT) {
+    const raw = readChain(miniFatStart);
+    miniFat = new Uint32Array(raw.buffer, 0, Math.floor(raw.byteLength / 4));
+  }
+
+  // --- Directory
+  const dirRaw = readChain(dirStart);
+  const entries = [];
+  for (let off = 0; off + 128 <= dirRaw.length; off += 128) {
+    const type = dirRaw[off + 0x42];
+    if (type !== 1 && type !== 2 && type !== 5) continue;
+    const nameLen = dirRaw[off + 0x40] | (dirRaw[off + 0x41] << 8);
+    let name = '';
+    for (let i = 0; i < Math.max(0, nameLen - 2); i += 2) {
+      name += String.fromCharCode(dirRaw[off + i] | (dirRaw[off + i + 1] << 8));
+    }
+    const ed = new DataView(dirRaw.buffer, dirRaw.byteOffset + off, 128);
+    entries.push({
+      name, type,
+      start: ed.getUint32(0x74, true),
+      size: ed.getUint32(0x7C, true) * 4294967296 + ed.getUint32(0x78, true)
+    });
+  }
+
+  const root = entries.find(e => e.type === 5);
+  let miniStream = null;
+
+  const readStream = e => {
+    if (e.type === 2 && e.size < miniCutoff) {
+      if (!miniStream && root) miniStream = readChain(root.start, root.size);
+      if (!miniStream) return new Uint8Array(0);
+      const out = new Uint8Array(e.size);
+      let c = e.start, o = 0;
+      const seen = new Set();
+      while (c !== ENDOFCHAIN && c < miniFat.length && o < e.size && !seen.has(c)) {
+        seen.add(c);
+        const base = c * miniSectorSize;
+        const n = Math.min(miniSectorSize, e.size - o);
+        out.set(miniStream.subarray(base, base + n), o);
+        o += n; c = miniFat[c];
+      }
+      return out;
+    }
+    return readChain(e.start, e.size);
+  };
+
+  return { entries, readStream };
+}
+
+/* ============================================================
+   OLE 1.0 Packager header  (Package / \x01Ole10Native streams)
+   ============================================================ */
+
+function tryPackager(b, p0) {
+  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  let p = p0;
+  if (p + 2 > b.length || dv.getUint16(p, true) !== 2) return null;
+  p += 2;
+  const cstr = () => {
+    let s = '', n = 0;
+    while (p < b.length && b[p] !== 0 && n++ < 600) { s += String.fromCharCode(b[p]); p++; }
+    p++; return s;
+  };
+  const label = cstr();
+  const origPath = cstr();
+  if (p + 8 > b.length) return null;
+  p += 4;                                        // formatId
+  const pathLen = dv.getUint32(p, true); p += 4; // ansi path again
+  if (pathLen > b.length - p) return null;
+  p += pathLen;
+  if (p + 4 > b.length) return null;
+  const dataLen = dv.getUint32(p, true); p += 4;
+  if (dataLen < 64 || dataLen > b.length - p) return null;
+  const name = (origPath.split(/[\\/]/).pop() || label || '').trim();
+  return { data: b.subarray(p, p + dataLen), offset: p, name, via: 'packager' };
+}
+
+function parsePackager(b) {
+  const starts = [0];
+  if (b.length > 8) {
+    const n = new DataView(b.buffer, b.byteOffset, b.byteLength).getUint32(0, true);
+    if (n > 0 && n <= b.length - 4) starts.push(4); // Ole10Native length prefix
+  }
+  for (const s of starts) { const r = tryPackager(b, s); if (r) return r; }
+  return null;
+}
+
+/* ============================================================
+   Audio sniffing
+   ============================================================ */
+
+const V1L1=[0,32,64,96,128,160,192,224,256,288,320,352,384,416,448],
+      V1L2=[0,32,48,56,64,80,96,112,128,160,192,224,256,320,384],
+      V1L3=[0,32,40,48,56,64,80,96,112,128,160,192,224,256,320],
+      V2L1=[0,32,48,56,64,80,96,112,128,144,160,176,192,224,256],
+      V2L23=[0,8,16,24,32,40,48,56,64,80,96,112,128,144,160];
+
+function mpegFrameLen(b, o) {
+  if (o + 4 > b.length) return 0;
+  const b1 = b[o+1], b2 = b[o+2];
+  const ver = (b1 >> 3) & 3, lay = (b1 >> 1) & 3;
+  if (ver === 1 || lay === 0) return 0;
+  const brIdx = (b2 >> 4) & 15, srIdx = (b2 >> 2) & 3;
+  if (brIdx === 0 || brIdx === 15 || srIdx === 3) return 0;
+  const mpeg1 = ver === 3, layer = 4 - lay;
+  const table = mpeg1 ? (layer === 1 ? V1L1 : layer === 2 ? V1L2 : V1L3)
+                      : (layer === 1 ? V2L1 : V2L23);
+  const bitrate = table[brIdx] * 1000;
+  const sr = (mpeg1 ? [44100,48000,32000] : ver === 2 ? [22050,24000,16000] : [11025,12000,8000])[srIdx];
+  const pad = (b2 >> 1) & 1;
+  if (!bitrate || !sr) return 0;
+  if (layer === 1) return ((12 * bitrate / sr | 0) + pad) * 4;
+  return ((layer === 3 && !mpeg1 ? 72 : 144) * bitrate / sr | 0) + pad;
+}
+
+// Require several consecutive frames so we don't latch onto random 0xFF bytes.
+function mpegRun(b, o, need = 4) {
+  let p = o;
+  for (let i = 0; i < need; i++) {
+    if (p + 4 > b.length) return i >= 2;
+    if (b[p] !== 0xFF || (b[p+1] & 0xE0) !== 0xE0) return false;
+    const len = mpegFrameLen(b, p);
+    if (len < 24) return false;
+    p += len;
+  }
+  return true;
+}
+
+function sniff(b, o = 0) {
+  if (b.length - o < 16) return null;
+  const a = i => b[o + i];
+  if (a(0) === 0x49 && a(1) === 0x44 && a(2) === 0x33) return 'mp3';
+  if (a(0) === 0xFF && (a(1) & 0xE0) === 0xE0 && mpegRun(b, o)) return 'mp3';
+  if (a(0) === 0x52 && a(1) === 0x49 && a(2) === 0x46 && a(3) === 0x46 &&
+      a(8) === 0x57 && a(9) === 0x41 && a(10) === 0x56 && a(11) === 0x45) return 'wav';
+  if (a(0) === 0x4F && a(1) === 0x67 && a(2) === 0x67 && a(3) === 0x53) return 'ogg';
+  if (a(0) === 0x66 && a(1) === 0x4C && a(2) === 0x61 && a(3) === 0x43) return 'flac';
+  if (a(4) === 0x66 && a(5) === 0x74 && a(6) === 0x79 && a(7) === 0x70) return 'm4a';
+  if (a(0) === 0x30 && a(1) === 0x26 && a(2) === 0xB2 && a(3) === 0x75) return 'wma';
+  return null;
+}
+
+// Last resort: hunt for a magic number partway into a blob.
+function scanForAudio(b, limit = 4 << 20) {
+  const end = Math.min(b.length - 16, limit);
+  for (let i = 0; i < end; i++) {
+    const c = b[i];
+    if (c !== 0x49 && c !== 0xFF && c !== 0x52 && c !== 0x4F && c !== 0x66 && c !== 0x30) continue;
+    const kind = sniff(b, i);
+    if (kind) return { kind, offset: i, data: b.subarray(i) };
+  }
+  return null;
+}
+
+/* Pull audio out of one OLE stream, trying the clean route before the messy one. */
+function audioFromStream(bytes) {
+  const direct = sniff(bytes, 0);
+  if (direct) return { kind: direct, data: bytes, offset: 0, via: 'body' };
+
+  const pack = parsePackager(bytes);
+  if (pack) {
+    const kind = sniff(pack.data, 0);
+    if (kind) return { ...pack, kind };
+    const inner = scanForAudio(pack.data);
+    if (inner) return { kind: inner.kind, data: inner.data, offset: pack.offset + inner.offset,
+                        name: pack.name, via: 'packagerScan' };
+  }
+
+  const found = scanForAudio(bytes);
+  if (found) return { ...found, via: 'scan' };
+  return null;
+}
+
+/* ============================================================
+   Analysis — produces data, renders nothing
+   ============================================================ */
+
+const MIME = { mp3:'audio/mpeg', wav:'audio/wav', ogg:'audio/ogg', flac:'audio/flac',
+               m4a:'audio/mp4', wma:'audio/x-ms-wma' };
+const AUDIO_EXT = /\.(mp3|wav|m4a|aac|ogg|oga|opus|flac|wma|mid|midi)$/i;
+
+// { docs: [{ meta, rows, empty, count }], results: [...] }
+// results is flat across every document so the players can be listed together.
+let state = null;
+
+const hex = n => '0x' + n.toString(16).toUpperCase().padStart(4, '0');
+
+function fmtBytes(n) {
+  if (n == null) return '';
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+  return (n / 1048576).toFixed(2) + ' MB';
+}
+
+async function analyse(file) {
+  const rows = [], results = [];
+  const push = (path, size, verdict, labelKey, noteKey, noteVars) =>
+    rows.push({ path, size, verdict, labelKey, noteKey, noteVars });
+
+  const buf = new Uint8Array(await file.arrayBuffer());
+  const isZip = buf[0] === 0x50 && buf[1] === 0x4B;
+  const isCFB = buf[0] === 0xD0 && buf[1] === 0xCF && buf[2] === 0x11 && buf[3] === 0xE0;
+
+  const harvestOLE = (data, label) => {
+    const cfb = parseCFB(data);
+    if (!cfb) {
+      const found = scanForAudio(data);
+      if (found) {
+        push({ key: 'v.rawScan' }, found.data.length, 'hit', 'v.audio', 'n.rawHit',
+             { off: hex(found.offset), kind: found.kind.toUpperCase() });
+        results.push({ ...found, source: label + ' @ ' + hex(found.offset) });
+      } else {
+        push({ key: 'v.rawScan' }, data.length, 'fail', 'v.noAudio', 'n.rawMiss');
+      }
+      return;
+    }
+    const streams = cfb.entries.filter(e => e.type === 2 && e.size > 512);
+    if (!streams.length) push({ key: 'v.noStreams' }, null, 'fail', 'v.empty');
+    for (const s of streams) {
+      const clean = s.name.replace(/[\x00-\x1F]/g, m => '\\x0' + m.charCodeAt(0));
+      const got = audioFromStream(cfb.readStream(s));
+      if (got) {
+        push('└ ' + clean, s.size, 'hit', null, 'n.at',
+             { off: hex(got.offset), viaKey: got.via });
+        rows[rows.length - 1].rawLabel = got.kind;
+        results.push({ ...got, source: `${label} → ${s.name.replace(/[\x00-\x1F]/g, '')}` });
+      } else {
+        push('└ ' + clean, s.size, 'skip', 'v.metadata');
+      }
+    }
+  };
+
+  if (isCFB) {
+    push(file.name, file.size, 'probe', 'v.oleFile', 'n.legacy');
+    harvestOLE(buf, file.name);
+  } else if (isZip) {
+    let zip;
+    try {
+      zip = await JSZip.loadAsync(buf);
+    } catch (e) {
+      push(file.name, file.size, 'fail', 'v.unreadable', 'n.badZip', { msg: e.message });
+      return { meta: { name: file.name, size: file.size }, rows, results,
+               empty: { title: 'e.badZipTitle', body: ['e.badZipA'] } };
+    }
+
+    const files = Object.values(zip.files).filter(f => !f.dir)
+                        .sort((a, b) => a.name.localeCompare(b.name));
+
+    for (const f of files) {
+      if (AUDIO_EXT.test(f.name)) {
+        const data = await f.async('uint8array');
+        const kind = sniff(data, 0) || f.name.split('.').pop().toLowerCase();
+        push(f.name, data.length, 'hit', 'v.audio', 'n.plain');
+        results.push({ kind, data, name: f.name.split('/').pop(),
+                       source: f.name, via: 'body', offset: 0 });
+      } else if (/embeddings\/.+\.(bin|doc|xls|ppt)$/i.test(f.name)) {
+        const data = await f.async('uint8array');
+        push(f.name, data.length, 'probe', 'v.oleObject');
+        harvestOLE(data, f.name);
+      } else {
+        push(f.name, f._data ? f._data.uncompressedSize : null, 'skip',
+             /\.(emf|wmf|png|jpe?g|gif|bmp)$/i.test(f.name) ? 'v.icon' : 'v.markup');
+      }
+    }
+
+    // Nothing yet? Sweep every entry for audio signatures.
+    if (!results.length) {
+      for (const f of files) {
+        if (/\.(xml|rels)$/i.test(f.name)) continue;
+        const data = await f.async('uint8array');
+        const found = scanForAudio(data);
+        if (found) {
+          push(f.name, data.length, 'hit', 'v.audioFound', 'n.sweep', { off: hex(found.offset) });
+          results.push({ ...found, via: 'scan', source: f.name + ' @ ' + hex(found.offset) });
+        }
+      }
+    }
+  } else {
+    push(file.name, file.size, 'fail', 'v.unknown', 'n.notDoc');
+    return { meta: { name: file.name, size: file.size }, rows, results,
+             empty: { title: 'e.notDocTitle', body: ['e.notDocA'] } };
+  }
+
+  for (const r of results) {
+    r.url = URL.createObjectURL(new Blob([r.data], { type: MIME[r.kind] || 'application/octet-stream' }));
+  }
+
+  return {
+    meta: { name: file.name, size: file.size },
+    rows, results,
+    empty: results.length ? null : { title: 'e.noneTitle', body: ['e.noneA', 'e.noneB'] }
+  };
+}
+
+/* ============================================================
+   Render
+   ============================================================ */
+
+const $ = id => document.getElementById(id);
+
+const displayName = r =>
+  (r.name && /\.[a-z0-9]{2,4}$/i.test(r.name)) ? r.name : `extracted-audio.${r.kind}`;
+
+function renderRow(r, delay) {
+  const el = document.createElement('div');
+  el.className = 'row anim';
+  el.dataset.v = r.verdict;
+  el.style.animationDelay = delay + 'ms';
+
+  const p = document.createElement('span');
+  p.className = 'row-path';
+  p.textContent = typeof r.path === 'string' ? r.path : t(r.path.key);
+
+  const s = document.createElement('span');
+  s.className = 'row-size';
+  s.textContent = fmtBytes(r.size);
+
+  const v = document.createElement('span');
+  v.className = 'row-verdict';
+  v.textContent = r.rawLabel || t(r.labelKey);
+
+  el.append(p, s, v);
+
+  if (r.noteKey) {
+    const vars = { ...(r.noteVars || {}) };
+    if (vars.viaKey) vars.via = t('via.' + vars.viaKey);
+    const n = document.createElement('span');
+    n.className = 'row-note';
+    n.textContent = t(r.noteKey, vars);
+    el.appendChild(n);
+  }
+  return el;
+}
+
+function renderCard(r, showDoc) {
+  const card = document.createElement('div');
+  card.className = 'found';
+  const name = displayName(r);
+
+  if (showDoc) {
+    const d = document.createElement('div');
+    d.className = 'found-doc'; d.textContent = r.doc;
+    card.appendChild(d);
+  }
+
+  const h = document.createElement('div');
+  h.className = 'found-name'; h.textContent = name;
+
+  const from = document.createElement('div');
+  from.className = 'found-from';
+  from.textContent = t('r.from', { size: fmtBytes(r.data.length),
+                                   kind: r.kind.toUpperCase(), source: r.source });
+
+  const audio = document.createElement('audio');
+  audio.controls = true; audio.preload = 'metadata'; audio.src = r.url;
+
+  const a = document.createElement('a');
+  a.className = 'save'; a.href = r.url; a.download = name;
+  a.textContent = t('r.save', { ext: name.split('.').pop().toUpperCase() });
+
+  card.append(h, from, audio, a);
+
+  if (r.via === 'scan') {
+    const w = document.createElement('div');
+    w.className = 'note';
+    const b = document.createElement('b'); b.textContent = t('r.warnTitle');
+    w.append(b, ' ', t('r.warnBody'));
+    card.appendChild(w);
+  }
+  return card;
+}
+
+function renderEmpty(empty) {
+  const el = document.createElement('div');
+  el.className = 'empty';
+  const p = document.createElement('p');
+  p.innerHTML = '<b>' + t(empty.title) + '</b>';
+  el.appendChild(p);
+  for (const k of empty.body) {
+    const q = document.createElement('p');
+    q.innerHTML = t(k);
+    el.appendChild(q);
+  }
+  return el;
+}
+
+function renderResults() {
+  const cardsEl = $('cards'), rowsEl = $('rows');
+  const resEl = $('results'), traceEl = $('trace');
+  cardsEl.textContent = '';
+  rowsEl.textContent = '';
+
+  if (!state || !state.docs.length) {
+    resEl.hidden = true;
+    traceEl.hidden = true;
+    return;
+  }
+
+  const many = state.docs.length > 1;
+  const found = state.results.length;
+
+  // --- Players first.
+  resEl.hidden = false;
+  $('resMeta').textContent = !found ? ''
+    : many ? t('res.fromDocs', { n: found, d: state.docs.length })
+    : found === 1 ? t('res.one') : t('res.many', { n: found });
+
+  const saveBtn = $('saveAll');
+  saveBtn.hidden = found < 2;
+  saveBtn.disabled = false;
+  saveBtn.textContent = t('res.saveAll');
+
+  for (const r of state.results) cardsEl.appendChild(renderCard(r, many));
+
+  if (!found) {
+    // One document: keep its specific diagnosis. Several: a single generic message.
+    cardsEl.appendChild(renderEmpty(
+      many ? { title: 'e.noneTitle', body: ['e.noneA', 'e.noneB'] }
+           : (state.docs[0].empty || { title: 'e.noneTitle', body: ['e.noneA', 'e.noneB'] })
+    ));
+  }
+
+  // --- Then the listing, grouped per document.
+  traceEl.hidden = false;
+  const totalBytes = state.docs.reduce((a, d) => a + d.meta.size, 0);
+  $('traceMeta').textContent = many
+    ? state.docs.length + ' × · ' + fmtBytes(totalBytes)
+    : state.docs[0].meta.name + ' · ' + fmtBytes(totalBytes);
+
+  let delay = 0;
+  for (const doc of state.docs) {
+    if (many) {
+      const head = document.createElement('div');
+      head.className = 'doc-head';
+      const nm = document.createElement('span');
+      nm.className = 'doc-name'; nm.textContent = doc.meta.name;
+      const meta = document.createElement('span');
+      meta.className = 'doc-meta';
+      if (doc.count) meta.innerHTML = t('doc.count', { n: doc.count });
+      else meta.textContent = t('doc.none');
+      head.append(nm, meta);
+      rowsEl.appendChild(head);
+    }
+    for (const r of doc.rows) {
+      rowsEl.appendChild(renderRow(r, delay));
+      delay += 16;
+    }
+  }
+}
+
+/* ============================================================
+   Language + routing
+   ============================================================ */
+
+function setLang(next, remember = true) {
+  lang = STR[next] ? next : 'en';
+  document.documentElement.lang = lang;
+
+  document.querySelectorAll('[data-t]').forEach(el => { el.textContent = t(el.dataset.t); });
+  document.querySelectorAll('[data-thtml]').forEach(el => { el.innerHTML = t(el.dataset.thtml); });
+  document.querySelectorAll('[data-only]').forEach(el => { el.hidden = el.dataset.only !== lang; });
+  document.querySelectorAll('.langswitch button').forEach(b => {
+    b.setAttribute('aria-pressed', String(b.dataset.lang === lang));
+  });
+
+  document.title = lang === 'zh'
+    ? 'Unwrap — 从 Word 文档中取出音频'
+    : 'Unwrap — pull audio out of a Word document';
+
+  renderResults();
+
+  // Persist if the browser allows it; sandboxed frames throw here, which is fine.
+  if (remember) { try { localStorage.setItem('unwrap.lang', lang); } catch (e) {} }
+}
+
+function route() {
+  const page = location.hash.replace(/^#\/?/, '').split('?')[0] === 'about' ? 'about' : 'extract';
+  $('view-extract').hidden = page !== 'extract';
+  $('view-about').hidden   = page !== 'about';
+  document.querySelectorAll('[data-nav]').forEach(a => {
+    if (a.dataset.nav === page) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
+  });
+  window.scrollTo(0, 0);
+}
+
+/* ============================================================
+   Wiring
+   ============================================================ */
+
+document.querySelectorAll('.langswitch button').forEach(b =>
+  b.addEventListener('click', () => setLang(b.dataset.lang)));
+
+const dropEl = $('drop'), fileEl = $('file');
+
+function releaseState() {
+  if (!state) return;
+  for (const r of state.results) { try { URL.revokeObjectURL(r.url); } catch (e) {} }
+}
+
+async function handle(fileList) {
+  const files = [...fileList];
+  if (!files.length) return;
+
+  releaseState();
+  state = { docs: [], results: [] };
+  renderResults();
+
+  const busy = $('busy');
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    busy.hidden = false;
+    busy.textContent = t('busy.reading', { name: f.name, i: i + 1, n: files.length });
+    // Yield so the progress line paints before a large file blocks the thread.
+    await new Promise(r => setTimeout(r, 0));
+
+    const out = await analyse(f);
+    for (const r of out.results) r.doc = f.name;
+    state.docs.push({ meta: out.meta, rows: out.rows, empty: out.empty,
+                      count: out.results.length });
+    state.results.push(...out.results);
+    renderResults();   // players appear as each document is opened
+  }
+  busy.hidden = true;
+}
+
+// Filenames repeat across documents — lesson-1.docx and lesson-2.docx both yield
+// audio.mp3 — so disambiguate inside the archive rather than silently overwriting.
+function uniqueName(taken, name) {
+  if (!taken.has(name)) { taken.add(name); return name; }
+  const dot = name.lastIndexOf('.');
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  const ext  = dot > 0 ? name.slice(dot) : '';
+  let n = 2;
+  while (taken.has(`${stem} (${n})${ext}`)) n++;
+  const out = `${stem} (${n})${ext}`;
+  taken.add(out);
+  return out;
+}
+
+async function saveAll() {
+  const btn = $('saveAll');
+  btn.disabled = true;
+  btn.textContent = t('res.zipping');
+  try {
+    const zip = new JSZip();
+    const taken = new Set();
+    for (const r of state.results) zip.file(uniqueName(taken, displayName(r)), r.data);
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'extracted-audio.zip';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    btn.textContent = t('res.saveAll');
+    btn.disabled = false;
+  } catch (e) {
+    btn.textContent = t('res.zipFailed');   // individual save buttons still work
+  }
+}
+
+$('saveAll').addEventListener('click', saveAll);
+dropEl.addEventListener('click', () => fileEl.click());
+fileEl.addEventListener('change', e => handle(e.target.files));
+
+['dragenter', 'dragover'].forEach(ev =>
+  dropEl.addEventListener(ev, e => { e.preventDefault(); dropEl.dataset.over = '1'; }));
+['dragleave', 'drop'].forEach(ev =>
+  dropEl.addEventListener(ev, e => { e.preventDefault(); dropEl.dataset.over = '0'; }));
+dropEl.addEventListener('drop', e => handle(e.dataTransfer.files));
+
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => e.preventDefault());
+window.addEventListener('hashchange', route);
+
+// Saved choice, else the browser's own preference, else English.
+let initial = null;
+try { initial = localStorage.getItem('unwrap.lang'); } catch (e) {}
+if (!initial) initial = /^zh/i.test(navigator.language || '') ? 'zh' : 'en';
+setLang(initial, false);
+route();
+</script>
+</html>

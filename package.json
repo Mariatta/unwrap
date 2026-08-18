@@ -1,0 +1,24 @@
+{
+  "name": "unwrap",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Extract audio embedded inside Word documents, entirely in the browser.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "fixtures": "python3 tests/make_fixtures.py",
+    "test": "node tests/extract.test.mjs && node tests/i18n.test.mjs && node tests/ui.test.mjs && node tests/multidoc.test.mjs",
+    "test:extract": "node tests/extract.test.mjs",
+    "test:i18n": "node tests/i18n.test.mjs",
+    "test:ui": "node tests/ui.test.mjs",
+    "test:multidoc": "node tests/multidoc.test.mjs",
+    "serve": "python3 -m http.server 8000"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0",
+    "jszip": "^3.10.1"
+  },
+  "engines": {
+    "node": ">=20.11"
+  }
+}
