@@ -71,8 +71,13 @@ found".** Update `helpers.mjs` in the same commit.
 
 ## Tone
 
-The About page and READMEs frame the teacher sympathetically on purpose: the format
-failed, not the person. Keep that if you rewrite copy.
+The READMEs centre the student: someone non-technical who just wants to do her
+homework, and who should not have to learn a terminal to hear this week's listening
+exercise. That is the point of the tool, so keep it there if you rewrite copy.
+
+The About page in `index.html` still tells the story from the teacher's side, and is
+deliberately sympathetic to him: the format failed, not the person. Never let either
+version read as blaming him.
 
 ## Settled decisions
 

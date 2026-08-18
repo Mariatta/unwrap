@@ -4,7 +4,7 @@
 
 Pull the audio back out of a Word document that has an MP3 buried inside it.
 
-**→ [mariatta.github.io/unwrap](https://mariatta.github.io/unwrap/)**
+**→ [mariatta.ca/unwrap](https://mariatta.ca/unwrap/)**
 
 ## Nothing is uploaded
 
@@ -15,14 +15,19 @@ disconnect from the network, and it still works.
 
 ## Why this exists
 
-An ESL teacher emails his class the lesson audio as an MP3 embedded inside a Word
-document. On his machine that is a perfectly reasonable thing to do: he clicks the
-speaker icon and the recording plays.
+My mother-in-law takes English classes for new immigrants. The lesson audio arrives
+as an MP3 embedded inside a Word document: fine on the machine it was made on, and
+unreachable on hers.
 
-Everywhere else it falls apart. His students don't all run Windows, and on a Mac,
-a phone, or a Chromebook the audio is right there in the file and completely
-unreachable. The format failed, not the person. This tool is the missing half of
-that email.
+She isn't a technical person, and she shouldn't have to become one to do her
+homework. Every existing way to get that MP3 out asks something unreasonable of
+her: run a command line tool, rename the file to `.zip` and go hunting through
+folders full of XML, or upload her class material to whichever website turns up
+first.
+
+So this is a page instead. Drop the document on it, get the audio, go back to
+studying. Nothing to install, no terminal, nothing new to learn, and the file never
+leaves her computer.
 
 The original post: <https://fosstodon.org/@mariatta/117114000531151134>
 
