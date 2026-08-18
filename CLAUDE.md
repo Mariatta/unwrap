@@ -76,6 +76,27 @@ Font files come from Google Fonts' css2 endpoint, latin and latin-ext subsets of
 the exact weights in use. All three families are SIL OFL 1.1 and their licence
 texts sit beside them in `vendor/fonts/`.
 
+## Favicon and the sharing card
+
+The favicon is an inline SVG data URI in the `<link rel="icon">`, so it costs no
+request. `apple-touch-icon.png` (180px) and `og.png` (1200x630) are generated from
+sources in `tools/`, not hand-drawn, so regenerate rather than editing the PNGs:
+
+```bash
+rsvg-convert -w 180 -h 180 tools/icon.svg -o apple-touch-icon.png
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless \
+  --window-size=1200,630 --force-device-scale-factor=1 \
+  --screenshot=og.png "file://$PWD/tools/og-card.html"
+magick og.png -strip -colors 128 og.png
+```
+
+`tools/og-card.html` loads the vendored webfonts by relative path, so the card uses
+the same faces as the site. If the favicon SVG changes, update both `tools/icon.svg`
+and the data URI in `index.html`: they are the same drawing in two places.
+
+`og:image` must be an absolute URL, so it hardcodes `https://mariatta.ca/unwrap/`.
+Change that if the site ever moves.
+
 ## Navigation and the About page
 
 About is reachable from the footer only, not the top bar. The footer link carries
