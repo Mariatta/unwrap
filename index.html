@@ -271,8 +271,14 @@
     text-decoration: none;
     color: var(--ink);
     margin-right: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
   }
-  .mark span { color: var(--hit); }
+  /* Same drawing as the favicon, inline so it costs no request. */
+  .mark-glyph { display: block; flex: none; }
+  .mark-word { display: block; }
+  .mark-word > span { color: var(--hit); }
 
   .navlink {
     font-size: 14px;
@@ -344,9 +350,16 @@
     font-size: 17.5px;
     color: var(--muted);
     max-width: 56ch;
-    margin: 0 0 40px;
+    margin: 0 0 14px;
   }
   .standfirst strong { color: var(--ink); font-weight: 600; }
+  /* Said quietly here, and again in the footer. */
+  .hero-note {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--muted);
+    margin: 0 0 40px;
+  }
 
   a { color: var(--hit); }
 
@@ -653,7 +666,13 @@
 
 <header class="topbar">
   <div class="wrap topbar-in">
-    <a class="mark" href="#/">Unwrap<span>.</span></a>
+    <a class="mark" href="#/">
+      <svg class="mark-glyph" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+        <rect width="24" height="24" rx="5" fill="#141c26"/>
+        <path d="M4.5 9.5v5h3.2l4.3 3.2V6.3L7.7 9.5H4.5z" fill="#eef1f4"/>
+        <path d="M15.4 9.3a4 4 0 0 1 0 5.4" fill="none" stroke="#a78bfa" stroke-width="1.9" stroke-linecap="round"/>
+        <path d="M18.1 6.9a7.4 7.4 0 0 1 0 10.2" fill="none" stroke="#a78bfa" stroke-width="1.9" stroke-linecap="round"/>
+      </svg><span class="mark-word">Unwrap<span>.</span></span></a>
     <a class="navlink" href="#/" data-nav="extract" data-t="nav.extract">Extract</a>
     <div class="langswitch" role="group" aria-label="Language">
       <button type="button" data-lang="en" aria-pressed="true">EN</button>
@@ -668,6 +687,7 @@
     <p class="eyebrow" data-thtml="hero.eyebrow"></p>
     <h1 data-t="hero.title"></h1>
     <p class="standfirst" data-thtml="hero.standfirst"></p>
+    <p class="hero-note" data-t="hero.note"></p>
 
     <button class="drop" id="drop" type="button">
       <span class="drop-lead" data-t="drop.lead"></span>
@@ -832,6 +852,7 @@
   <div class="wrap foot-in">
     <span data-t="foot.tagline"></span>
     <a href="#/about" data-nav="about" data-t="nav.about">About</a>
+    <a href="https://mariatta.ca/" rel="noopener" data-t="foot.by">by Mariatta</a>
     <span class="foot-sep" data-t="foot.privacy"></span>
   </div>
 </footer>
@@ -847,7 +868,8 @@ const STR = {
     'nav.about': 'About',
     'hero.eyebrow': 'zip &rarr; ole compound file &rarr; <b>audio</b>',
     'hero.title': "There's a sound file in that Word document.",
-    'hero.standfirst': 'Drop the <strong>.docx</strong> in and this walks the archive, opens any embedded OLE objects it finds, and hands you the audio. Everything runs in this tab, and <strong>the file is never uploaded anywhere.</strong>',
+    'hero.standfirst': 'Drop the <strong>.docx</strong> in. If there is an audio file inside it, you get it back.',
+    'hero.note': 'Nothing is uploaded. It all happens in this tab.',
     'drop.lead': 'Choose files, or drop them here',
     'trace.title': "What's inside",
     'res.title': 'Audio',
@@ -863,6 +885,7 @@ const STR = {
     'about.eyebrow': 'why this exists',
     'about.title': 'A Word document with a sound inside it.',
     'foot.tagline': 'Unwrap: audio out of Word documents.',
+    'foot.by': 'by Mariatta',
     'foot.privacy': 'Runs entirely in your browser.',
 
     'v.audio': 'audio',
@@ -912,7 +935,8 @@ const STR = {
     'nav.about': '关于',
     'hero.eyebrow': 'zip &rarr; ole 复合文档 &rarr; <b>音频</b>',
     'hero.title': '那份 Word 文档里，藏着一个音频文件。',
-    'hero.standfirst': '把 <strong>.docx</strong> 拖进来，它会遍历文档内部的压缩包，打开其中嵌入的 OLE 对象，然后把音频交给你。全部处理都在这个标签页内完成，<strong>文件不会被上传到任何地方。</strong>',
+    'hero.standfirst': '把 <strong>.docx</strong> 拖进来。如果里面藏着音频文件，就能把它取回来。',
+    'hero.note': '文件不会被上传，一切都在这个标签页内完成。',
     'drop.lead': '选择文件，或把文件拖到这里',
     'trace.title': '文档内部',
     'res.title': '音频',
@@ -928,6 +952,7 @@ const STR = {
     'about.eyebrow': '这个页面从何而来',
     'about.title': '一份 Word 文档，里面装着一段声音。',
     'foot.tagline': 'Unwrap：从 Word 文档中取出音频。',
+    'foot.by': '作者：Mariatta',
     'foot.privacy': '完全在你的浏览器中运行。',
 
     'v.audio': '音频',
