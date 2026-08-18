@@ -552,7 +552,31 @@
     overflow-wrap: anywhere;
     margin-bottom: 14px;
   }
-  .found audio { width: 100%; margin-bottom: 14px; }
+  /* A big target first, because the native control's play button is a small
+     hit area on a tablet. The native bar stays underneath for scrubbing. */
+  .player {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .play {
+    flex: none;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background: var(--hit);
+    color: #fff;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    padding: 0;
+  }
+  .play:hover { background: #4a17b8; }
+  .play:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  .play svg { display: block; }
+  .found audio { flex: 1; min-width: 0; }
 
   .save {
     display: inline-block;
@@ -917,6 +941,8 @@ const STR = {
     'via.scan': 'a magic-byte scan',
 
     'r.save': 'Save {ext}',
+    'r.play': 'Play {name}',
+    'r.pause': 'Pause {name}',
     'r.from': '{size} · {kind} · from {source}',
     'r.warnTitle': 'Recovered by scanning for magic bytes.',
     'r.warnBody': "The container header didn't parse, so the start of the audio was located by signature instead. Playback should be fine, but a few trailing bytes of container padding may be attached.",
@@ -984,6 +1010,8 @@ const STR = {
     'via.scan': '特征字节扫描',
 
     'r.save': '保存 {ext}',
+    'r.play': '播放 {name}',
+    'r.pause': '暂停 {name}',
     'r.from': '{size} · {kind} · 来自 {source}',
     'r.warnTitle': '通过扫描特征字节恢复。',
     'r.warnBody': '容器头部未能解析，因此改用特征码定位音频的起始位置。播放通常没有问题，但末尾可能附带少量容器填充字节。',
@@ -1262,6 +1290,12 @@ const MIME = { mp3:'audio/mpeg', wav:'audio/wav', ogg:'audio/ogg', flac:'audio/f
                m4a:'audio/mp4', wma:'audio/x-ms-wma' };
 const AUDIO_EXT = /\.(mp3|wav|m4a|aac|ogg|oga|opus|flac|wma|mid|midi)$/i;
 
+const ICON_PLAY  = '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">'
+                 + '<path d="M8 5.2v13.6L19 12z" fill="currentColor"/></svg>';
+const ICON_PAUSE = '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">'
+                 + '<rect x="7" y="5" width="3.6" height="14" rx="1" fill="currentColor"/>'
+                 + '<rect x="13.4" y="5" width="3.6" height="14" rx="1" fill="currentColor"/></svg>';
+
 // { docs: [{ meta, rows, empty, count }], results: [...] }
 // results is flat across every document so the players can be listed together.
 let state = null;
@@ -1437,11 +1471,30 @@ function renderCard(r, showDoc) {
   const audio = document.createElement('audio');
   audio.controls = true; audio.preload = 'metadata'; audio.src = r.url;
 
+  // The button and the native bar drive the same element, so pressing either
+  // keeps the other in step.
+  const play = document.createElement('button');
+  play.type = 'button';
+  play.className = 'play';
+  const setPlayState = playing => {
+    play.innerHTML = playing ? ICON_PAUSE : ICON_PLAY;
+    play.setAttribute('aria-label', t(playing ? 'r.pause' : 'r.play', { name }));
+  };
+  setPlayState(false);
+  play.addEventListener('click', () => { audio.paused ? audio.play() : audio.pause(); });
+  audio.addEventListener('play',  () => setPlayState(true));
+  audio.addEventListener('pause', () => setPlayState(false));
+  audio.addEventListener('ended', () => setPlayState(false));
+
+  const player = document.createElement('div');
+  player.className = 'player';
+  player.append(play, audio);
+
   const a = document.createElement('a');
   a.className = 'save'; a.href = r.url; a.download = name;
   a.textContent = t('r.save', { ext: name.split('.').pop().toUpperCase() });
 
-  card.append(h, from, audio, a);
+  card.append(h, from, player, a);
 
   if (r.via === 'scan') {
     const w = document.createElement('div');
@@ -1573,6 +1626,14 @@ function route() {
 
 document.querySelectorAll('.langswitch button').forEach(b =>
   b.addEventListener('click', () => setLang(b.dataset.lang)));
+
+// One at a time: starting a lesson stops whatever else was playing. `play` does
+// not bubble, so this has to listen on the capture phase.
+document.addEventListener('play', e => {
+  for (const other of document.querySelectorAll('#results audio')) {
+    if (other !== e.target) other.pause();
+  }
+}, true);
 
 const dropEl = $('drop'), fileEl = $('file');
 

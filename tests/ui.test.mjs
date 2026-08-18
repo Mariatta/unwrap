@@ -75,6 +75,22 @@ T.check('note re-rendered in English', /Audio starts at/.test(note2));
 T.check('save button English', txt('.save') === 'Save MP3');
 T.check('filename unchanged', txt('.found-name') === 'voice-memo.mp3');
 
+T.section('The play button');
+T.check('one big play button on the card', $$('.play').length === 1);
+T.check('labelled with the filename', $('.play').getAttribute('aria-label') === 'Play voice-memo.mp3',
+        $('.play').getAttribute('aria-label'));
+T.check('native controls kept for scrubbing', !!$('.found audio[controls]'));
+
+// jsdom implements neither play() nor pause(), so drive the element by event:
+// what matters is that the button follows the media, whichever one started it.
+$('.found audio').dispatchEvent(new w.Event('play'));
+T.check('label flips to pause', $('.play').getAttribute('aria-label') === 'Pause voice-memo.mp3');
+$('.found audio').dispatchEvent(new w.Event('pause'));
+T.check('label returns to play', $('.play').getAttribute('aria-label') === 'Play voice-memo.mp3');
+$('.found audio').dispatchEvent(new w.Event('play'));
+$('.found audio').dispatchEvent(new w.Event('ended'));
+T.check('reaching the end resets it', $('.play').getAttribute('aria-label') === 'Play voice-memo.mp3');
+
 T.section('A file that is not a document');
 await w.handle([{ name: 'notes.txt', size: 8,
                   arrayBuffer: async () => new Uint8Array([1,2,3,4,5,6,7,8]).buffer }]);
