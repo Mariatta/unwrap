@@ -4,7 +4,7 @@
 
 把藏在 Word 文档里的音频取出来。
 
-**→ [mariatta.github.io/unwrap](https://mariatta.github.io/unwrap/)**
+**→ [mariatta.ca/unwrap](https://mariatta.ca/unwrap/)**
 
 ## 文件不会被上传
 

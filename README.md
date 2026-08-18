@@ -4,7 +4,7 @@
 
 Pull the audio back out of a Word document that has an MP3 buried inside it.
 
-**→ [mariatta.github.io/unwrap](https://mariatta.github.io/unwrap/)**
+**→ [mariatta.ca/unwrap](https://mariatta.ca/unwrap/)**
 
 ## Nothing is uploaded
 
