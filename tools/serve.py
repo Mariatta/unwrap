@@ -2,10 +2,10 @@
 """Serve the repository root for local development.
 
 `python3 -m http.server 8000` fails outright when 8000 is already taken, which
-it usually is because an earlier session is still running. This walks up from
-the requested port until it finds a free one, and prints the address a phone or
-tablet on the same network can reach, since the touch targets are the thing
-most worth checking on a real device.
+it usually is because an earlier session, or Docker, is still holding it. This
+takes the next free port instead, and prints the address a phone or tablet on
+the same network can reach, since the touch targets are the thing most worth
+checking on a real device.
 
 Usage:
     python3 tools/serve.py [port]     # default 8000, or the first free port after it
@@ -21,17 +21,23 @@ FIRST = 8000
 TRIES = 50
 
 
-def free_port(start):
-    """First port from `start` that nothing is listening on."""
+def serve_near(handler, start):
+    """A server bound to `start`, or the next free port after it.
+
+    Binding the real socket and catching the failure, rather than probing with
+    a throwaway socket first: a probe closes the port before the server claims
+    it, and another process can take it in between.
+
+    The kernel will hand out any free port if asked for port 0, which needs no
+    loop at all. That is the fallback rather than the default, because a port
+    near 8000 is one you can type into a tablet, and 54948 is not.
+    """
     for port in range(start, start + TRIES):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            try:
-                s.bind(("0.0.0.0", port))
-            except OSError:
-                continue
-            return port
-    raise SystemExit(f"no free port between {start} and {start + TRIES - 1}")
+        try:
+            return http.server.ThreadingHTTPServer(("0.0.0.0", port), handler)
+        except OSError:
+            continue
+    return http.server.ThreadingHTTPServer(("0.0.0.0", 0), handler)
 
 
 def lan_addresses():
@@ -68,11 +74,10 @@ def lan_addresses():
 
 def main():
     asked = int(sys.argv[1]) if len(sys.argv) > 1 else FIRST
-    port = free_port(asked)
 
     os.chdir(ROOT)
-    handler = http.server.SimpleHTTPRequestHandler
-    server = http.server.ThreadingHTTPServer(("0.0.0.0", port), handler)
+    server = serve_near(http.server.SimpleHTTPRequestHandler, asked)
+    port = server.server_address[1]
 
     if port != asked:
         print(f"port {asked} was busy, using {port}")
