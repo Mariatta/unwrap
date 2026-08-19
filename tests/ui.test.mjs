@@ -24,9 +24,12 @@ T.check('English prose shown', !$('[data-only="en"]').hidden);
 T.check('Chinese prose hidden', $('[data-only="zh"]').hidden);
 T.note('h1: ' + txt('#view-extract h1'));
 
-T.section('Layout contract: players sit above the listing');
+T.section('Layout contract: audio on the first page, workings on their own');
 const sections = [...w.document.getElementById('view-extract').querySelectorAll('section')].map(s => s.id);
-T.check('results before trace', sections.indexOf('results') < sections.indexOf('trace'), sections.join(' → '));
+T.check('results before kept', sections.indexOf('results') < sections.indexOf('kept'), sections.join(' → '));
+T.check('the byte listing is not on the extract page', !sections.includes('trace'));
+T.check('it lives on its own page', !!w.document.querySelector('#view-inside #trace'));
+T.check('reachable by a link', !!w.document.querySelector('#view-extract .inside-link a'));
 
 T.section('Switching to 中文');
 click('.langswitch button[data-lang="zh"]');
@@ -74,6 +77,18 @@ T.check('card survives', $$('.found').length === 1);
 T.check('note re-rendered in English', /Audio starts at/.test(note2));
 T.check('save button English', txt('.save') === 'Save MP3');
 T.check('filename unchanged', txt('.found-name') === 'voice-memo.mp3');
+
+T.section("Routing to #/inside");
+w.location.hash = '#/inside';
+w.dispatchEvent(new w.Event('hashchange'));
+T.check('inside visible', !w.document.getElementById('view-inside').hidden);
+T.check('extract hidden', w.document.getElementById('view-extract').hidden);
+T.check('about hidden', w.document.getElementById('view-about').hidden);
+T.check('rows are there', $$('#view-inside .row').length > 0, $$('#view-inside .row').length + ' rows');
+T.check('a way back', !!$('#view-inside .inside-link a'));
+w.location.hash = '#/';
+w.dispatchEvent(new w.Event('hashchange'));
+T.check('and back again', !w.document.getElementById('view-extract').hidden);
 
 T.section('The play button');
 T.check('one big play button on the card', $$('.play').length === 1);

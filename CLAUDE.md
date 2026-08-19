@@ -186,8 +186,12 @@ version read as blaming him.
 
 - Client-side, not a server: a server would mean accepting untrusted binary uploads
   and owning the privacy question for other people's audio.
-- Hash routing (`#/`, `#/about`), not separate HTML files. One file, no Pages 404
-  config, still shareable.
+- Hash routing (`#/`, `#/about`, `#/inside`), not separate HTML files. One file,
+  no Pages 404 config, still shareable.
+- The byte-level listing lives on `#/inside`, not under the audio. The person
+  this is for wants the recording, not the offsets; anyone who does want them
+  follows one link. State is in memory, so a cold load of `#/inside` shows an
+  empty message rather than a broken page.
 - In-DOM dual content for About prose (`data-only="en|zh"`, toggled by CSS), `STR`
   table for short dynamic UI strings.
 - System CJK fonts, no CJK webfont.
