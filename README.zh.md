@@ -63,7 +63,7 @@ Unwrap 按照规范逐段跟着扇区链走，而不是假设 MP3 一定连续�
 npm install
 npm run fixtures     # 首次运行测试前必须执行：tests/fixtures/ 不纳入版本管理
 npm test
-npm run serve        # http://localhost:8000
+npm run serve        # 会打印访问地址，包括平板可以访问的那个
 ```
 
 `npm run fixtures` 需要 Python 3（只用标准库）。测试需要 Node 20.11 或更高版本。
