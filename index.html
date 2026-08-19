@@ -578,6 +578,17 @@
   .play:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
   .play svg { display: block; }
 
+  .inside-link {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    margin: 26px 0 0;
+  }
+  .inside-link[hidden] { display: none; }
+  .empty-inside {
+    color: var(--muted);
+    max-width: 52ch;
+  }
+
   .keep-note {
     font-family: var(--mono);
     font-size: 12.5px;
@@ -777,13 +788,30 @@
       <div class="cards" id="keptCards"></div>
     </section>
 
+    <p class="inside-link"><a href="#/inside" data-t="trace.link"></a></p>
+  </div>
+</main>
+
+<!-- ======================== WHAT'S INSIDE ========================= -->
+<!-- Its own page: the person this is for wants the audio, not the byte
+     offsets. Anyone who does want them is one link away. -->
+<main id="view-inside" hidden>
+  <div class="wrap">
+
+    <p class="eyebrow" data-t="trace.eyebrow"></p>
+    <h1 data-t="trace.title"></h1>
+
     <section class="trace" id="trace" hidden>
       <div class="trace-head">
-        <span class="trace-title" data-t="trace.title"></span>
+        <span class="trace-title" data-t="trace.subtitle"></span>
         <span class="trace-meta" id="traceMeta"></span>
       </div>
       <div id="rows"></div>
     </section>
+
+    <p class="empty-inside" id="insideEmpty" data-t="trace.empty" hidden></p>
+    <p class="inside-link"><a href="#/" data-t="trace.back"></a></p>
+
   </div>
 </main>
 
@@ -958,6 +986,11 @@ const STR = {
     'hero.note': 'Nothing is uploaded. It all happens in this tab.',
     'drop.lead': 'Choose files, or drop them here',
     'trace.title': "What's inside",
+    'trace.eyebrow': 'the long way round',
+    'trace.subtitle': 'Every part of the document',
+    'trace.link': "What was inside the document \u2192",
+    'trace.back': "\u2190 Back to the audio",
+    'trace.empty': 'Nothing opened yet. Drop a document on the first page and the workings show up here.',
     'res.title': 'Audio',
     'res.one': '1 file',
     'res.many': '{n} files',
@@ -1037,6 +1070,11 @@ const STR = {
     'hero.note': '文件不会被上传，一切都在这个标签页内完成。',
     'drop.lead': '选择文件，或把文件拖到这里',
     'trace.title': '文档内部',
+    'trace.eyebrow': '细看一层',
+    'trace.subtitle': '文档里的每一个部分',
+    'trace.link': '看看文档里都有什么 \u2192',
+    'trace.back': '\u2190 回到音频',
+    'trace.empty': '还没有打开任何文档。在第一页拖进一份文档，这里就会显示处理过程。',
     'res.title': '音频',
     'res.one': '1 个文件',
     'res.many': '{n} 个文件',
@@ -1663,6 +1701,10 @@ function renderResults() {
   if (!state || !state.docs.length) {
     resEl.hidden = true;
     traceEl.hidden = true;
+    $('insideEmpty').hidden = false;
+    // Nothing to look inside of yet, so do not offer.
+    for (const el of document.querySelectorAll('.inside-link')) el.hidden = true;
+    document.querySelector('#view-inside .inside-link').hidden = false;   // except the way back
     return;
   }
 
@@ -1690,8 +1732,10 @@ function renderResults() {
     ));
   }
 
-  // --- Then the listing, grouped per document.
+  // --- Then the listing, on its own page now.
   traceEl.hidden = false;
+  $('insideEmpty').hidden = true;
+  for (const el of document.querySelectorAll('.inside-link')) el.hidden = false;
   const totalBytes = state.docs.reduce((a, d) => a + d.meta.size, 0);
   $('traceMeta').textContent = many
     ? state.docs.length + ' × · ' + fmtBytes(totalBytes)
@@ -1854,9 +1898,11 @@ function setLang(next, remember = true) {
 }
 
 function route() {
-  const page = location.hash.replace(/^#\/?/, '').split('?')[0] === 'about' ? 'about' : 'extract';
+  const asked = location.hash.replace(/^#\/?/, '').split('?')[0];
+  const page = asked === 'about' ? 'about' : asked === 'inside' ? 'inside' : 'extract';
   $('view-extract').hidden = page !== 'extract';
   $('view-about').hidden   = page !== 'about';
+  $('view-inside').hidden  = page !== 'inside';
   document.querySelectorAll('[data-nav]').forEach(a => {
     if (a.dataset.nav === page) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
