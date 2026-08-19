@@ -94,4 +94,14 @@ T.check('bundle button Chinese', txt('#saveAll') === '打包下载全部');
 T.check('per-document count Chinese', /找到/.test($$('.doc-head')[0].textContent));
 T.note('heading: ' + $$('.doc-head')[0].textContent.replace(/\s+/g, ' '));
 
+T.section('Only one result plays at a time');
+const players = $$('.found audio');
+T.check('three players on the page', players.length === 3);
+// jsdom has no media stack, so record the pause() calls rather than reading .paused.
+const paused = new Set();
+players.forEach((a, i) => { a.pause = () => paused.add(i); });
+players[1].dispatchEvent(new w.Event('play'));
+T.check('the others were stopped', paused.has(0) && paused.has(2), 'paused: ' + [...paused].join(', '));
+T.check('the one that started was left alone', !paused.has(1));
+
 T.done();

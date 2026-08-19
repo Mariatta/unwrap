@@ -104,6 +104,22 @@ About is reachable from the footer only, not the top bar. The footer link carrie
 `tests/ui.test.mjs` asserts on both. The served page does not link out to Mastodon
 at all: that link lives in the READMEs.
 
+## The player is two controls on purpose
+
+Each result card has a 56px play/pause button *and* the native `<audio controls>`
+bar. The button exists because the native play control is a small hit area on a
+tablet; the native bar stays for scrubbing, volume and the OS integration a custom
+transport would have to reimplement. They drive the same element and follow each
+other, so the button listens to the media's `play`, `pause` and `ended` events
+rather than tracking its own state.
+
+Only one result plays at a time. The listener is on `document` in the **capture**
+phase, because `play` does not bubble. Moving it to a bubbling listener silently
+stops it firing.
+
+jsdom implements neither `play()` nor `pause()`, so the tests drive playback by
+dispatching events and, for the pause-others rule, by replacing `pause` with a spy.
+
 ## Tests import the app by slicing it
 
 `tests/helpers.mjs` extracts the core out of `index.html` by matching the section
