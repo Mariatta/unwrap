@@ -38,9 +38,11 @@ export function strings() {
 }
 
 /** A jsdom window with the page loaded and running.
- *  Returns { w, blobs } where blobs.created / blobs.revoked count object URLs. */
-export function makeWindow() {
-  const html = readApp().replace(/<script src="https:\/\/cdnjs[^>]*><\/script>/, '');
+ *  Returns { w, blobs } where blobs.created / blobs.revoked count object URLs.
+ *  Pass { indexedDB } to give the page a store; without one it degrades, which
+ *  is the path every other suite exercises. */
+export function makeWindow({ indexedDB } = {}) {
+  const html = readApp();
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://example.org/' });
   const w = dom.window;
 
@@ -54,6 +56,9 @@ export function makeWindow() {
   // jsdom has no layout, so scrollTo() logs a "not implemented" stack on every
   // route change. Stub it to keep test output readable.
   w.scrollTo = () => {};
+
+  // Injected before the page runs, because the page opens the database on load.
+  if (indexedDB) w.indexedDB = indexedDB;
 
   const blobs = { created: 0, revoked: 0, last: null };
   w.URL.createObjectURL = (b) => { blobs.created++; blobs.last = b; return 'blob:stub' + blobs.created; };

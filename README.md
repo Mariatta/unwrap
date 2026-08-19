@@ -12,6 +12,11 @@ Your document never leaves your computer. There is no server, no upload, and no
 account: the page reads the file with the browser's own APIs and writes the audio
 straight back to your downloads folder.
 
+Extracted audio is kept in this browser so it is still there next time, on that
+device and nowhere else. **Forget these**, above the kept files, removes it, and
+so does clearing site data. Some browsers clear it themselves after a week or two
+of not visiting.
+
 It also contacts nobody else. No CDN, no font host, no analytics, no cookies:
 JSZip and the webfonts are served from this repository, so loading the page makes
 no third-party requests at all. Once you have the page, you can disconnect from the

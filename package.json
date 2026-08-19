@@ -7,14 +7,16 @@
   "type": "module",
   "scripts": {
     "fixtures": "python3 tests/make_fixtures.py",
-    "test": "node tests/extract.test.mjs && node tests/i18n.test.mjs && node tests/ui.test.mjs && node tests/multidoc.test.mjs",
+    "test": "node tests/extract.test.mjs && node tests/i18n.test.mjs && node tests/ui.test.mjs && node tests/multidoc.test.mjs && node tests/keep.test.mjs",
     "test:extract": "node tests/extract.test.mjs",
     "test:i18n": "node tests/i18n.test.mjs",
     "test:ui": "node tests/ui.test.mjs",
     "test:multidoc": "node tests/multidoc.test.mjs",
-    "serve": "python3 tools/serve.py"
+    "serve": "python3 tools/serve.py",
+    "test:keep": "node tests/keep.test.mjs"
   },
   "devDependencies": {
+    "fake-indexeddb": "^6.2.5",
     "jsdom": "^24.0.0",
     "jszip": "^3.10.1"
   },
