@@ -106,10 +106,13 @@ at all: that link lives in the READMEs.
 
 ## Playback speed is on the card
 
-`RATES = [0.5, 0.75, 1]`, rendered as a segmented control beside the player,
+`RATES` is normal, slow, slower, rendered as a segmented control beside the player,
 because in Chrome the browser's own control is behind a three-dot menu and in
 Safari behind a long-press. The audience is someone following a lesson in a
-language they are still learning, so the presets go down from 1x, not up.
+language they are still learning, so the presets go down from normal, not up,
+and they are **labelled in words**. She knows she wants it slower; 0.75x is a
+number she would have to interpret first. The multipliers stay in `data-rate`
+for the code and the tests.
 
 - **The choice is global and remembered** (`unwrap.rate` in localStorage, same
   try/catch as the language). Someone who needs 0.75 needs it every time, on

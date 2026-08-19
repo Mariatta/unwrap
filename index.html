@@ -597,7 +597,7 @@
     background: var(--card);
   }
   .speed button {
-    font-family: var(--mono);
+    font: inherit;
     font-size: 12.5px;
     font-weight: 500;
     padding: 7px 11px;
@@ -1010,6 +1010,9 @@ const STR = {
     'keep.confirm': 'Press again to forget',
     'keep.full': 'There was no room to keep these on this device. They are still here until you close the tab.',
     'r.speed': 'Playback speed',
+    'r.speedNormal': 'Normal',
+    'r.speedSlow': 'Slow',
+    'r.speedSlower': 'Slower',
     'r.play': 'Play {name}',
     'r.pause': 'Pause {name}',
     'r.from': '{size} · {kind} · from {source}',
@@ -1086,6 +1089,9 @@ const STR = {
     'keep.confirm': '再按一次即清除',
     'keep.full': '这台设备上没有足够空间保存这些文件。在你关闭标签页之前，它们仍然可用。',
     'r.speed': '播放速度',
+    'r.speedNormal': '正常',
+    'r.speedSlow': '慢',
+    'r.speedSlower': '更慢',
     'r.play': '播放 {name}',
     'r.pause': '暂停 {name}',
     'r.from': '{size} · {kind} · 来自 {source}',
@@ -1498,19 +1504,25 @@ const displayName = r =>
    in Safari behind a long-press, and someone following a lesson in a language
    they are still learning should not have to go looking for it.
 
-   These rates are for listening, not skimming: 1x is what the teacher recorded,
-   and the two below it are for catching words that go past too quickly. The
-   choice applies to every player and is remembered, because someone who needs
-   0.75 needs it every time. */
-const RATES = [0.5, 0.75, 1];
+   Labelled in words rather than multipliers. Someone who wants the lesson
+   slower knows they want it slower; 0.75x is a number they would have to
+   interpret first. Normal is what the teacher recorded, and the two below it
+   are for catching words that go past too quickly. The choice applies to every
+   player and is remembered, because someone who needs it slow needs it slow
+   every time. */
+const RATES = [
+  { v: 1,    key: 'r.speedNormal' },
+  { v: 0.75, key: 'r.speedSlow'   },
+  { v: 0.5,  key: 'r.speedSlower' }
+];
 let rate = 1;
 try {
   const saved = Number(localStorage.getItem('unwrap.rate'));
-  if (RATES.includes(saved)) rate = saved;
+  if (RATES.some(r => r.v === saved)) rate = saved;
 } catch (e) {}
 
 function applyRate(next) {
-  rate = RATES.includes(next) ? next : 1;
+  rate = RATES.some(r => r.v === next) ? next : 1;
   for (const a of document.querySelectorAll('.found audio')) {
     a.playbackRate = rate;
     a.defaultPlaybackRate = rate;
@@ -1583,11 +1595,11 @@ function renderCard(r, showDoc) {
   speed.className = 'speed';
   speed.setAttribute('role', 'group');
   speed.setAttribute('aria-label', t('r.speed'));
-  for (const v of RATES) {
+  for (const { v, key } of RATES) {
     const b = document.createElement('button');
     b.type = 'button';
     b.dataset.rate = String(v);
-    b.textContent = String(v) + '\u00d7';
+    b.textContent = t(key);
     b.setAttribute('aria-pressed', String(v === rate));
     b.addEventListener('click', () => applyRate(v));
     speed.appendChild(b);

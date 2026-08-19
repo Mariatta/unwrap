@@ -111,5 +111,8 @@ T.check('all three players slowed', speeds.every(a => a.playbackRate === 0.5),
         speeds.map(a => a.playbackRate).join(', '));
 T.check('every control agrees',
         $$('.speed button[data-rate="0.5"]').every(b => b.getAttribute('aria-pressed') === 'true'));
+T.check('speed labels translated too',
+        $$('.speed button').slice(0, 3).map(b => b.textContent).join(',') === '正常,慢,更慢',
+        $$('.speed button').slice(0, 3).map(b => b.textContent).join(','));
 
 T.done();

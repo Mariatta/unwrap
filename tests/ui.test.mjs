@@ -94,8 +94,11 @@ T.check('reaching the end resets it', $('.play').getAttribute('aria-label') === 
 T.section('Playback speed, on the card');
 T.check('three rates offered', $$('.speed button').length === 3,
         $$('.speed button').map(b => b.textContent).join(' '));
-T.check('rates are the slow ones a learner needs',
-        $$('.speed button').map(b => b.dataset.rate).join(',') === '0.5,0.75,1');
+T.check('normal first, then slower ones',
+        $$('.speed button').map(b => b.dataset.rate).join(',') === '1,0.75,0.5');
+T.check('labelled in words, not multipliers',
+        $$('.speed button').map(b => b.textContent).join(',') === 'Normal,Slow,Slower',
+        $$('.speed button').map(b => b.textContent).join(','));
 T.check('starts at normal speed', $('.speed button[data-rate="1"]').getAttribute('aria-pressed') === 'true');
 T.check('the audio agrees', $('.found audio').playbackRate === 1);
 T.check('group is labelled for a screen reader', $('.speed').getAttribute('aria-label') === 'Playback speed');
