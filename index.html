@@ -557,6 +557,7 @@
   .player {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 14px;
     margin-bottom: 14px;
   }
@@ -583,7 +584,32 @@
     color: var(--muted);
     margin: -6px 0 18px;
   }
-  .found audio { flex: 1; min-width: 0; }
+  .found audio { flex: 1; min-width: 210px; }
+
+  /* Speed sits on the card, not behind the browser's own menu. On a narrow
+     screen it wraps under the player rather than squeezing it. */
+  .speed {
+    display: flex;
+    flex: none;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    overflow: hidden;
+    background: var(--card);
+  }
+  .speed button {
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 7px 11px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .speed button + button { border-left: 1px solid var(--rule); }
+  .speed button:hover { color: var(--ink); }
+  .speed button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+  .speed button:focus-visible { outline: 2px solid var(--hit); outline-offset: -2px; }
 
   .save {
     display: inline-block;
@@ -983,6 +1009,10 @@ const STR = {
     'keep.forget': 'Forget these',
     'keep.confirm': 'Press again to forget',
     'keep.full': 'There was no room to keep these on this device. They are still here until you close the tab.',
+    'r.speed': 'Playback speed',
+    'r.speedNormal': 'Normal',
+    'r.speedSlow': 'Slow',
+    'r.speedSlower': 'Slower',
     'r.play': 'Play {name}',
     'r.pause': 'Pause {name}',
     'r.from': '{size} · {kind} · from {source}',
@@ -1058,6 +1088,10 @@ const STR = {
     'keep.forget': '清除这些',
     'keep.confirm': '再按一次即清除',
     'keep.full': '这台设备上没有足够空间保存这些文件。在你关闭标签页之前，它们仍然可用。',
+    'r.speed': '播放速度',
+    'r.speedNormal': '正常',
+    'r.speedSlow': '慢',
+    'r.speedSlower': '更慢',
     'r.play': '播放 {name}',
     'r.pause': '暂停 {name}',
     'r.from': '{size} · {kind} · 来自 {source}',
@@ -1466,6 +1500,39 @@ const $ = id => document.getElementById(id);
 const displayName = r =>
   (r.name && /\.[a-z0-9]{2,4}$/i.test(r.name)) ? r.name : `extracted-audio.${r.kind}`;
 
+/* Playback speed belongs on the card. In Chrome it is behind a three-dot menu,
+   in Safari behind a long-press, and someone following a lesson in a language
+   they are still learning should not have to go looking for it.
+
+   Labelled in words rather than multipliers. Someone who wants the lesson
+   slower knows they want it slower; 0.75x is a number they would have to
+   interpret first. Normal is what the teacher recorded, and the two below it
+   are for catching words that go past too quickly. The choice applies to every
+   player and is remembered, because someone who needs it slow needs it slow
+   every time. */
+const RATES = [
+  { v: 1,    key: 'r.speedNormal' },
+  { v: 0.75, key: 'r.speedSlow'   },
+  { v: 0.5,  key: 'r.speedSlower' }
+];
+let rate = 1;
+try {
+  const saved = Number(localStorage.getItem('unwrap.rate'));
+  if (RATES.some(r => r.v === saved)) rate = saved;
+} catch (e) {}
+
+function applyRate(next) {
+  rate = RATES.some(r => r.v === next) ? next : 1;
+  for (const a of document.querySelectorAll('.found audio')) {
+    a.playbackRate = rate;
+    a.defaultPlaybackRate = rate;
+  }
+  for (const b of document.querySelectorAll('.speed button')) {
+    b.setAttribute('aria-pressed', String(Number(b.dataset.rate) === rate));
+  }
+  try { localStorage.setItem('unwrap.rate', String(rate)); } catch (e) {}
+}
+
 function renderRow(r, delay) {
   const el = document.createElement('div');
   el.className = 'row anim';
@@ -1518,6 +1585,25 @@ function renderCard(r, showDoc) {
 
   const audio = document.createElement('audio');
   audio.controls = true; audio.preload = 'metadata'; audio.src = r.url;
+  // Slowed speech keeps its pitch, so 0.75 still sounds like the person who
+  // recorded it rather than a tape running down.
+  audio.preservesPitch = true;
+  audio.playbackRate = rate;
+  audio.defaultPlaybackRate = rate;
+
+  const speed = document.createElement('div');
+  speed.className = 'speed';
+  speed.setAttribute('role', 'group');
+  speed.setAttribute('aria-label', t('r.speed'));
+  for (const { v, key } of RATES) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.rate = String(v);
+    b.textContent = t(key);
+    b.setAttribute('aria-pressed', String(v === rate));
+    b.addEventListener('click', () => applyRate(v));
+    speed.appendChild(b);
+  }
 
   // The button and the native bar drive the same element, so pressing either
   // keeps the other in step.
@@ -1536,7 +1622,7 @@ function renderCard(r, showDoc) {
 
   const player = document.createElement('div');
   player.className = 'player';
-  player.append(play, audio);
+  player.append(play, audio, speed);
 
   const a = document.createElement('a');
   a.className = 'save'; a.href = r.url; a.download = name;

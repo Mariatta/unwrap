@@ -104,6 +104,25 @@ About is reachable from the footer only, not the top bar. The footer link carrie
 `tests/ui.test.mjs` asserts on both. The served page does not link out to Mastodon
 at all: that link lives in the READMEs.
 
+## Playback speed is on the card
+
+`RATES` is normal, slow, slower, rendered as a segmented control beside the player,
+because in Chrome the browser's own control is behind a three-dot menu and in
+Safari behind a long-press. The audience is someone following a lesson in a
+language they are still learning, so the presets go down from normal, not up,
+and they are **labelled in words**. She knows she wants it slower; 0.75x is a
+number she would have to interpret first. The multipliers stay in `data-rate`
+for the code and the tests.
+
+- **The choice is global and remembered** (`unwrap.rate` in localStorage, same
+  try/catch as the language). Someone who needs 0.75 needs it every time, on
+  every card.
+- **`preservesPitch = true`** so slowed speech keeps its pitch. Without it a
+  lesson at 0.75 sounds like a tape running down, which is worse than useless
+  for hearing how a word is pronounced.
+- Both `playbackRate` and `defaultPlaybackRate` are set, so reloading the media
+  does not silently drop back to 1x.
+
 ## Kept audio lives in IndexedDB
 
 Extracted audio is written to IndexedDB (`unwrap` / `audio`) so it survives a

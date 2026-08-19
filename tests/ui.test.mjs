@@ -91,11 +91,40 @@ $('.found audio').dispatchEvent(new w.Event('play'));
 $('.found audio').dispatchEvent(new w.Event('ended'));
 T.check('reaching the end resets it', $('.play').getAttribute('aria-label') === 'Play voice-memo.mp3');
 
+T.section('Playback speed, on the card');
+T.check('three rates offered', $$('.speed button').length === 3,
+        $$('.speed button').map(b => b.textContent).join(' '));
+T.check('normal first, then slower ones',
+        $$('.speed button').map(b => b.dataset.rate).join(',') === '1,0.75,0.5');
+T.check('labelled in words, not multipliers',
+        $$('.speed button').map(b => b.textContent).join(',') === 'Normal,Slow,Slower',
+        $$('.speed button').map(b => b.textContent).join(','));
+T.check('starts at normal speed', $('.speed button[data-rate="1"]').getAttribute('aria-pressed') === 'true');
+T.check('the audio agrees', $('.found audio').playbackRate === 1);
+T.check('group is labelled for a screen reader', $('.speed').getAttribute('aria-label') === 'Playback speed');
+T.check('pitch is preserved, so slow speech is not a growl', $('.found audio').preservesPitch === true);
+
+$('.speed button[data-rate="0.75"]').dispatchEvent(new w.Event('click'));
+T.check('choosing 0.75 sets the player', $('.found audio').playbackRate === 0.75);
+T.check('and defaultPlaybackRate, so a reload of the media keeps it',
+        $('.found audio').defaultPlaybackRate === 0.75);
+T.check('the control shows which is chosen', $('.speed button[data-rate="0.75"]').getAttribute('aria-pressed') === 'true');
+T.check('and unshows the old one', $('.speed button[data-rate="1"]').getAttribute('aria-pressed') === 'false');
+T.check('choice remembered', w.localStorage.getItem('unwrap.rate') === '0.75');
+
 T.section('A file that is not a document');
 await w.handle([{ name: 'notes.txt', size: 8,
                   arrayBuffer: async () => new Uint8Array([1,2,3,4,5,6,7,8]).buffer }]);
 T.check('empty state shown', !!$('.empty'));
 T.check('no result cards', $$('.found').length === 0);
 T.note(txt('.empty p'));
+
+T.section('A speed chosen last time is still chosen');
+const { w: w2 } = makeWindow({ storage: { 'unwrap.rate': '0.5' } });
+await w2.handle([fixtureFile('packaged.docx', 'lesson-9.docx')]);
+const slow = w2.document.querySelector('.found audio');
+T.check('player starts slowed', slow.playbackRate === 0.5, String(slow.playbackRate));
+T.check('control shows it', w2.document.querySelector('.speed button[data-rate="0.5"]')
+        .getAttribute('aria-pressed') === 'true');
 
 T.done();

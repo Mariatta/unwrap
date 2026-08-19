@@ -40,8 +40,9 @@ export function strings() {
 /** A jsdom window with the page loaded and running.
  *  Returns { w, blobs } where blobs.created / blobs.revoked count object URLs.
  *  Pass { indexedDB } to give the page a store; without one it degrades, which
- *  is the path every other suite exercises. */
-export function makeWindow({ indexedDB } = {}) {
+ *  is the path every other suite exercises. Pass { storage } to seed
+ *  localStorage before the page runs, for what an earlier visit left behind. */
+export function makeWindow({ indexedDB, storage } = {}) {
   const html = readApp();
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://example.org/' });
   const w = dom.window;
@@ -57,6 +58,9 @@ export function makeWindow({ indexedDB } = {}) {
   // route change. Stub it to keep test output readable.
   w.scrollTo = () => {};
 
+  // Both of these go in before the page runs: it reads its stored preferences
+  // and opens the database on load.
+  if (storage) for (const [k, v] of Object.entries(storage)) w.localStorage.setItem(k, v);
   // Injected before the page runs, because the page opens the database on load.
   if (indexedDB) w.indexedDB = indexedDB;
 

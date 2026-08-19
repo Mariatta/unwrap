@@ -104,4 +104,15 @@ players[1].dispatchEvent(new w.Event('play'));
 T.check('the others were stopped', paused.has(0) && paused.has(2), 'paused: ' + [...paused].join(', '));
 T.check('the one that started was left alone', !paused.has(1));
 
+T.section('Speed applies to every player, not just the one you clicked');
+const speeds = $$('.found audio');
+$$('.speed button[data-rate="0.5"]')[2].dispatchEvent(new w.Event('click'));
+T.check('all three players slowed', speeds.every(a => a.playbackRate === 0.5),
+        speeds.map(a => a.playbackRate).join(', '));
+T.check('every control agrees',
+        $$('.speed button[data-rate="0.5"]').every(b => b.getAttribute('aria-pressed') === 'true'));
+T.check('speed labels translated too',
+        $$('.speed button').slice(0, 3).map(b => b.textContent).join(',') === '正常,慢,更慢',
+        $$('.speed button').slice(0, 3).map(b => b.textContent).join(','));
+
 T.done();
