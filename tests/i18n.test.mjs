@@ -61,7 +61,7 @@ for (const lang of ['en', 'zh']) {
   const m = html.match(new RegExp(`data-only="${lang}"[^>]*>([\\s\\S]*?)\\n      </div>`));
   if (!T.check(`data-only="${lang}" block present`, !!m)) continue;
   const sections = (m[1].match(/<h2>/g) || []).length;
-  T.check(`  ${lang}: 4 sections`, sections === 4, `${sections} found, ${m[1].length} chars`);
+  T.check(`  ${lang}: 5 sections`, sections === 5, `${sections} found, ${m[1].length} chars`);
 }
 
 T.section('CJK typography guards are in place');

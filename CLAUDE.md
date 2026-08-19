@@ -104,6 +104,31 @@ About is reachable from the footer only, not the top bar. The footer link carrie
 `tests/ui.test.mjs` asserts on both. The served page does not link out to Mastodon
 at all: that link lives in the READMEs.
 
+## Kept audio lives in IndexedDB
+
+Extracted audio is written to IndexedDB (`unwrap` / `audio`) so it survives a
+reload, and restored into the `#kept` section on load. Everything goes through
+the `keepStore` object, which **never throws and never rejects**: a missing or
+refused store resolves to `false`/`null` and the page carries on without
+persistence, the same bargain as the try/catch around `localStorage`.
+
+- **localStorage cannot do this job.** Strings only, roughly 5MB, and base64
+  inflates audio by a third. One five-minute lesson would not fit. IndexedDB
+  takes the `Uint8Array` the parser produced, unencoded, via structured clone.
+- **The record id is `doc \0 filename \0 length`.** That is what makes
+  re-opening the same document replace its entry instead of piling up copies.
+- **A result on screen is not also listed as kept**, filtered by that same id,
+  so nothing appears twice.
+- **`renderKept()` is async and guarded by `keptRun`.** Two overlapping runs (a
+  language switch during load) would otherwise both append and every card would
+  appear twice. `setLang()` calls it, which is also what draws it on load.
+- **Forgetting asks twice** rather than opening a dialog: one press arms the
+  button for four seconds.
+
+`tests/keep.test.mjs` runs the real store against `fake-indexeddb` and reads the
+database directly rather than asking the page what it stored. The other four
+suites run with no store at all, which covers the degraded path.
+
 ## The player is two controls on purpose
 
 Each result card has a 56px play/pause button *and* the native `<audio controls>`

@@ -576,6 +576,13 @@
   .play:hover { background: #4a17b8; }
   .play:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
   .play svg { display: block; }
+
+  .keep-note {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--muted);
+    margin: -6px 0 18px;
+  }
   .found audio { flex: 1; min-width: 0; }
 
   .save {
@@ -732,6 +739,18 @@
       <div class="cards" id="cards"></div>
     </section>
 
+    <p class="hero-note" id="keepNote" data-t="keep.full" hidden></p>
+
+    <section class="results" id="kept" hidden>
+      <div class="sec-head">
+        <span class="sec-title" data-t="keep.title"></span>
+        <span class="sec-meta" id="keptMeta"></span>
+        <button class="saveall" id="forget" type="button"></button>
+      </div>
+      <p class="keep-note" data-t="keep.note"></p>
+      <div class="cards" id="keptCards"></div>
+    </section>
+
     <section class="trace" id="trace" hidden>
       <div class="trace-head">
         <span class="trace-title" data-t="trace.title"></span>
@@ -800,6 +819,16 @@
            entirely and it still works. That matters when the file belongs to someone else's
            classroom.</p>
 
+        <h2>What stays on this device</h2>
+        <p>Extracted audio is kept in this browser, so it is still here the next time you open
+           the page and you do not have to find the email again. It is stored on this device
+           and nowhere else: keeping a file and uploading one are different things, and this
+           is the first.</p>
+        <p>Worth knowing on a shared computer: anyone using this browser will see what was
+           extracted. <b>Forget these</b>, above the kept files, removes them. Clearing site
+           data in your browser settings does the same. Some browsers, Safari in particular,
+           clear it themselves if you do not visit for a week or two.</p>
+
         <h2>When there's nothing to find</h2>
         <p>If the sender used <i>Insert → Object → Link to file</i>, the audio was never
            embedded at all: the document holds only a path to a file on their own computer.
@@ -855,6 +884,13 @@
         <p>没有服务器，也没有上传，你的文档不会有任何内容离开这个标签页。
            页面本身也不向任何第三方发出请求：没有 CDN，没有字体服务，没有统计追踪，也没有 Cookie。
            页面到手之后，完全断网也照样能用。当文件属于别人的课堂时，这一点尤其重要。</p>
+
+        <h2>哪些内容会留在这台设备上</h2>
+        <p>取出来的音频会保存在这个浏览器里，下次打开页面它还在，不必再去邮箱里翻那封邮件。
+           它只存在这台设备上，不会存到别处：保存和上传是两回事，这里做的是前者。</p>
+        <p>如果是共用的电脑，这一点值得留意：用这个浏览器的人都能看到取出来的文件。
+           点保存区域上方的<b>清除这些</b>即可删除，在浏览器设置里清除网站数据也一样。
+           有些浏览器（尤其是 Safari）在你一两周不访问之后，会自行清除这些内容。</p>
 
         <h2>如果什么也找不到</h2>
         <p>如果发送者用的是<i>「插入 → 对象 → 链接到文件」</i>，那么音频根本就没有被嵌入进来：
@@ -941,6 +977,12 @@ const STR = {
     'via.scan': 'a magic-byte scan',
 
     'r.save': 'Save {ext}',
+    'keep.title': 'On this device',
+    'keep.meta': '{n} kept from before',
+    'keep.note': 'Kept in this browser so they are here next time. They stay on this device.',
+    'keep.forget': 'Forget these',
+    'keep.confirm': 'Press again to forget',
+    'keep.full': 'There was no room to keep these on this device. They are still here until you close the tab.',
     'r.play': 'Play {name}',
     'r.pause': 'Pause {name}',
     'r.from': '{size} · {kind} · from {source}',
@@ -1010,6 +1052,12 @@ const STR = {
     'via.scan': '特征字节扫描',
 
     'r.save': '保存 {ext}',
+    'keep.title': '本机保存',
+    'keep.meta': '之前保存的 {n} 个',
+    'keep.note': '保存在这个浏览器里，下次打开还在。文件始终留在这台设备上。',
+    'keep.forget': '清除这些',
+    'keep.confirm': '再按一次即清除',
+    'keep.full': '这台设备上没有足够空间保存这些文件。在你关闭标签页之前，它们仍然可用。',
     'r.play': '播放 {name}',
     'r.pause': '暂停 {name}',
     'r.from': '{size} · {kind} · 来自 {source}',
@@ -1585,6 +1633,115 @@ function renderResults() {
 }
 
 /* ============================================================
+   Kept audio: survives a reload, never leaves the device
+   ============================================================ */
+
+const KEEP_DB = 'unwrap', KEEP_TABLE = 'audio';
+
+/* Everything goes through this one object so the page still runs where
+   IndexedDB is missing or refused (private windows, sandboxed frames), and so
+   the tests can swap in memory. Same reasoning as the try/catch around
+   localStorage: storage is a nicety, not a dependency. Every call resolves,
+   none of them throw, and a null result means "not stored" rather than "error".
+
+   Audio is held as the Uint8Array the parser produced; structured clone takes
+   typed arrays as they are, so nothing is base64'd or re-encoded on the way in
+   or out. localStorage could not do this: strings only, and roughly 5MB. */
+const keepStore = {
+  db: null,
+
+  async open() {
+    if (this.db !== null) return this.db;
+    this.db = await new Promise(resolve => {
+      if (typeof indexedDB === 'undefined') return resolve(false);
+      let req;
+      try { req = indexedDB.open(KEEP_DB, 1); } catch (e) { return resolve(false); }
+      req.onupgradeneeded = () => req.result.createObjectStore(KEEP_TABLE, { keyPath: 'id' });
+      req.onsuccess = () => resolve(req.result);
+      req.onerror   = () => resolve(false);
+      req.onblocked = () => resolve(false);
+    });
+    return this.db;
+  },
+
+  async tx(mode, fn) {
+    const db = await this.open();
+    if (!db) return null;
+    return new Promise(resolve => {
+      let tx;
+      try { tx = db.transaction(KEEP_TABLE, mode); } catch (e) { return resolve(null); }
+      let out = null;
+      const req = fn(tx.objectStore(KEEP_TABLE));
+      if (req) req.onsuccess = () => { out = req.result; };
+      tx.oncomplete = () => resolve(out === null ? true : out);
+      tx.onerror    = () => resolve(null);   // out of room, most likely
+      tx.onabort    = () => resolve(null);
+    });
+  },
+
+  all()   { return this.tx('readonly',  s => s.getAll()); },
+  clear() { return this.tx('readwrite', s => { s.clear(); return null; }); },
+  put(records) {
+    return this.tx('readwrite', s => { for (const rec of records) s.put(rec); return null; });
+  }
+};
+
+/* Re-opening the same document should replace its entry rather than pile up
+   copies, so the identity is the document, the filename and the length. */
+const keepId = r => [r.doc, displayName(r), r.data.length].join('\u0000');
+
+const keepRecord = r => ({
+  id: keepId(r), doc: r.doc, name: r.name, kind: r.kind, source: r.source,
+  via: r.via, offset: r.offset, data: r.data, savedAt: Date.now()
+});
+
+/* Back into the shape renderCard() already knows, so a restored file and a
+   freshly extracted one go through exactly the same rendering. */
+const keptToResult = rec => ({
+  kind: rec.kind, data: rec.data, name: rec.name, source: rec.source,
+  doc: rec.doc, via: rec.via, offset: rec.offset
+});
+
+let kept = [];       // restored results, each holding an object URL we own
+let keptRun = 0;     // renderKept() is async; only the newest run may draw
+
+async function keepSave(results) {
+  if (!results.length) return true;
+  const ok = await keepStore.put(results.map(keepRecord));
+  $('keepNote').hidden = ok !== null;
+  return ok !== null;
+}
+
+async function renderKept() {
+  const run = ++keptRun;
+  const sec = $('kept'), cardsEl = $('keptCards');
+  for (const r of kept) { try { URL.revokeObjectURL(r.url); } catch (e) {} }
+  kept = [];
+  cardsEl.textContent = '';
+
+  const records = (await keepStore.all()) || [];
+  // Two renders can overlap across that await: a language switch mid-load, say.
+  // Without this they both append and every card appears twice.
+  if (run !== keptRun) return;
+  // Anything on screen from this session is not also listed as kept.
+  const onScreen = new Set((state ? state.results : []).map(keepId));
+  const show = records.filter(rec => !onScreen.has(rec.id))
+                      .sort((a, b) => b.savedAt - a.savedAt);
+
+  sec.hidden = !show.length;
+  if (!show.length) return;
+
+  $('keptMeta').textContent = t('keep.meta', { n: show.length });
+  $('forget').textContent = t('keep.forget');
+  for (const rec of show) {
+    const r = keptToResult(rec);
+    r.url = URL.createObjectURL(new Blob([r.data], { type: MIME[r.kind] || 'application/octet-stream' }));
+    kept.push(r);
+    cardsEl.appendChild(renderCard(r, true));
+  }
+}
+
+/* ============================================================
    Language + routing
    ============================================================ */
 
@@ -1604,6 +1761,7 @@ function setLang(next, remember = true) {
     : 'Unwrap: pull audio out of a Word document';
 
   renderResults();
+  renderKept();
 
   // Persist if the browser allows it; sandboxed frames throw here, which is fine.
   if (remember) { try { localStorage.setItem('unwrap.lang', lang); } catch (e) {} }
@@ -1630,12 +1788,30 @@ document.querySelectorAll('.langswitch button').forEach(b =>
 // One at a time: starting a lesson stops whatever else was playing. `play` does
 // not bubble, so this has to listen on the capture phase.
 document.addEventListener('play', e => {
-  for (const other of document.querySelectorAll('#results audio')) {
+  for (const other of document.querySelectorAll('.found audio')) {
     if (other !== e.target) other.pause();
   }
 }, true);
 
 const dropEl = $('drop'), fileEl = $('file');
+
+/* Forgetting is destructive and a mis-tap is easy on a tablet, so it asks
+   twice rather than opening a dialog. The second press has to land within six
+   seconds or the button goes back to its usual self. */
+let forgetArmed = 0;
+$('forget').addEventListener('click', async () => {
+  const btn = $('forget');
+  if (!forgetArmed) {
+    forgetArmed = setTimeout(() => { forgetArmed = 0; btn.textContent = t('keep.forget'); }, 6000);
+    btn.textContent = t('keep.confirm');
+    return;
+  }
+  clearTimeout(forgetArmed);
+  forgetArmed = 0;
+  await keepStore.clear();
+  await renderKept();
+  $('keepNote').hidden = true;
+});
 
 function releaseState() {
   if (!state) return;
@@ -1664,8 +1840,10 @@ async function handle(fileList) {
                       count: out.results.length });
     state.results.push(...out.results);
     renderResults();   // players appear as each document is opened
+    await keepSave(out.results);   // per document, so a long batch is not all-or-nothing
   }
   busy.hidden = true;
+  renderKept();
 }
 
 // Filenames repeat across documents: lesson-1.docx and lesson-2.docx both yield
@@ -1721,7 +1899,7 @@ window.addEventListener('hashchange', route);
 let initial = null;
 try { initial = localStorage.getItem('unwrap.lang'); } catch (e) {}
 if (!initial) initial = /^zh/i.test(navigator.language || '') ? 'zh' : 'en';
-setLang(initial, false);
+setLang(initial, false);   // also draws whatever an earlier visit kept
 route();
 </script>
 </html>
